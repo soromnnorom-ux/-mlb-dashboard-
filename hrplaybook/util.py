@@ -60,6 +60,10 @@ def now_stamp() -> str:
     return _dt.datetime.now().isoformat(timespec="seconds")
 
 
+def today_iso() -> str:
+    return _dt.date.today().isoformat()
+
+
 def flip_name(name: str) -> str:
     """'Cronenworth, Jake' -> 'Jake Cronenworth'; passthrough if no comma."""
     if not name:

@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "hrplaybook-web",
+      "runtimeExecutable": "/Users/soromnnorom/hrplaybook/.venv/bin/hrplaybook",
+      "runtimeArgs": ["serve", "--port", "8782"],
+      "port": 8782
+    }
+  ]
+}

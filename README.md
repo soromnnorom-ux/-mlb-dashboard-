@@ -31,8 +31,23 @@ hrplaybook run --date today --full-statcast # pull Statcast for every batter (no
 hrplaybook lineups --date today             # print projected/confirmed lineups
 hrplaybook refresh --date today             # re-pull lineups+weather, re-tier
 hrplaybook grade --date yesterday           # grade past picks vs box scores -> ledger
+hrplaybook serve                            # local web dashboard at http://127.0.0.1:8000
 hrplaybook schedule-install                 # write a daily crontab snippet
 ```
+
+## Web dashboard
+
+`hrplaybook serve` launches a local FastAPI app (default http://127.0.0.1:8000):
+
+- **Slate** — SLATE READ banner + games with env tier / temp / wind / pitchers
+- **Cheat Sheet** — Tier 1 / 2 / 3 player cards
+- **Bet Cards** — TB / HR / HRR / Hits tables with model probability + value
+- **Matchups** — the full table, click-to-sort columns + live text filter
+- **Ledger** — graded results: per-bet hit-rate / ROI + every graded bet
+
+The **Run / Refresh / Grade** buttons trigger the pipeline in a background thread
+(the UI polls for completion). Reads/writes the same `out/<date>/` artifacts as
+the CLI, so the two are interchangeable. `pip install fastapi uvicorn` if missing.
 
 Outputs (under `out/<date>/`):
 - `cheatsheet.md` / `cheatsheet.html` — Tier 1 / 2 / 3, with a SLATE READ banner

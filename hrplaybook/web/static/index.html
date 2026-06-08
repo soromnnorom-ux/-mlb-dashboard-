@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>HR Playbook ⚾</title>
+<style>
+  :root{
+    --bg:#0e1116; --panel:#161b22; --panel2:#1c232d; --line:#2a323d;
+    --text:#e6edf3; --muted:#8b949e; --accent:#f0a000; --green:#2ea043;
+    --red:#da3633; --blue:#388bfd; --t1:#2ea043; --t2:#d29922; --t3:#6e7681;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+       font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  header{position:sticky;top:0;z-index:10;background:var(--panel);border-bottom:1px solid var(--line);
+         padding:10px 16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+  header h1{font-size:16px;margin:0;letter-spacing:.5px}
+  header h1 .dim{color:var(--muted);font-weight:400}
+  select,input,button{background:var(--panel2);color:var(--text);border:1px solid var(--line);
+         border-radius:6px;padding:6px 10px;font-size:13px}
+  button{cursor:pointer}
+  button:hover{border-color:var(--accent)}
+  button.primary{background:var(--accent);color:#1a1a1a;border-color:var(--accent);font-weight:600}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  .spacer{flex:1}
+  #status{font-size:12px;color:var(--muted);min-width:180px;text-align:right}
+  .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;vertical-align:middle}
+  .dot.run{background:var(--accent);animation:pulse 1s infinite}
+  .dot.ok{background:var(--green)} .dot.err{background:var(--red)}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+  nav{display:flex;gap:2px;padding:0 16px;background:var(--panel);border-bottom:1px solid var(--line)}
+  nav button{border:none;border-bottom:2px solid transparent;border-radius:0;background:none;
+       color:var(--muted);padding:10px 14px}
+  nav button.active{color:var(--text);border-bottom-color:var(--accent)}
+  main{padding:16px;max-width:1400px;margin:0 auto}
+  .banner{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+  .stat{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 16px;min-width:90px}
+  .stat .n{font-size:22px;font-weight:700}
+  .stat .l{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+  .note{background:var(--panel2);border-left:3px solid var(--accent);padding:8px 12px;border-radius:4px;
+        margin-bottom:14px;color:var(--muted)}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:7px 9px;border-bottom:1px solid var(--line);white-space:nowrap}
+  th{color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;cursor:pointer;user-select:none;
+     position:sticky;top:0;background:var(--panel)}
+  tbody tr:hover{background:var(--panel2)}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;overflow:auto;margin-bottom:16px}
+  .badge{display:inline-block;padding:1px 7px;border-radius:10px;font-size:11px;font-weight:600}
+  .b-elite{background:#143; color:#7ee787} .b-good{background:#341;color:#e3b341}
+  .b-neutral{background:#222b36;color:#8b949e} .b-deadair{background:#3a1d1d;color:#f85149}
+  .tag{display:inline-block;background:#222b36;color:#9da7b3;border:1px solid var(--line);
+       border-radius:4px;padding:0 5px;font-size:10px;margin-right:3px}
+  .tag.hot{color:#f0a000;border-color:#5a4400}.tag.miss{color:#7ee787;border-color:#1d4d2b}
+  .tag.plat{color:#79c0ff;border-color:#1f4a7a}.tag.late{color:#d2a8ff;border-color:#43326b}
+  .v-pos{color:var(--green);font-weight:600}.v-neg{color:var(--red)}.v-fair{color:var(--muted)}
+  .card{border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:8px;background:var(--panel)}
+  .card .hd{display:flex;justify-content:space-between;align-items:baseline}
+  .card .nm{font-weight:700;font-size:15px}.card .sp{color:var(--muted);font-size:12px}
+  .card .ln{margin-top:4px;color:#adbac7;font-size:12px}
+  .card .bets b{color:var(--accent)}
+  .tierhd{font-size:13px;font-weight:700;margin:18px 0 8px;letter-spacing:.5px}
+  .tierhd.t1{color:var(--t1)}.tierhd.t2{color:var(--t2)}.tierhd.t3{color:var(--t3)}
+  .filters{display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+  .empty{color:var(--muted);padding:40px;text-align:center}
+  .mono{font-variant-numeric:tabular-nums}
+  .ev-pos{color:#7ee787}.ev-neg{color:#f85149}
+  h3{margin:18px 0 8px;font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+</style>
+</head>
+<body>
+<header>
+  <h1>HR Playbook <span class="dim">⚾ dashboard</span></h1>
+  <select id="dateSel" title="slate date"></select>
+  <input id="dateInput" type="date" title="run a new date"/>
+  <button id="btnRun" class="primary">Run</button>
+  <button id="btnRefresh">Refresh</button>
+  <button id="btnGrade">Grade</button>
+  <label style="font-size:12px;color:var(--muted)"><input type="checkbox" id="noStat"/> no-statcast</label>
+  <div class="spacer"></div>
+  <div id="status">—</div>
+</header>
+<nav id="tabs">
+  <button data-tab="slate" class="active">Slate</button>
+  <button data-tab="sheet">Cheat Sheet</button>
+  <button data-tab="cards">Bet Cards</button>
+  <button data-tab="matchups">Matchups</button>
+  <button data-tab="ledger">Ledger</button>
+</nav>
+<main id="view"><div class="empty">Loading…</div></main>
+
+<script>
+const $ = s => document.querySelector(s);
+let STATE = {date:null, slate:null, tab:"slate", sort:{key:"play_score",dir:-1}, filter:""};
+
+const fmtPct = v => v==null||v===""?"—":(v*100).toFixed(0)+"%";
+const num = v => v==null||v===""?"—":(+v).toFixed(typeof v==="number"&&v<10?1:0);
+const envBadge = t => `<span class="badge b-${(t||'').replace('-','')}">${t||'?'}</span>`;
+function tagHtml(tags){
+  if(!tags) return "";
+  return String(tags).split("|").filter(Boolean).map(t=>{
+    let c = t.includes("HOT")?"hot": t.includes("MISSED")?"miss":
+            t.includes("PLATOON")?"plat": t.includes("LATE")?"late":"";
+    return `<span class="tag ${c}">${t}</span>`;
+  }).join("");
+}
+function valueCls(v){return v==="+EV"?"v-pos":v==="-EV"?"v-neg":"v-fair";}
+
+async function api(path, opts){const r=await fetch(path,opts); if(!r.ok) throw new Error(await r.text()); return r.json();}
+
+async function loadDates(){
+  const d = await api("/api/dates");
+  const sel = $("#dateSel"); sel.innerHTML="";
+  (d.dates.length?d.dates:[d.today]).forEach(x=>{
+    const o=document.createElement("option"); o.value=x; o.textContent=x; sel.appendChild(o);
+  });
+  $("#dateInput").value = d.today;
+  STATE.date = sel.value || d.today;
+  sel.value = STATE.date;
+}
+
+async function loadSlate(){
+  if(!STATE.date) return;
+  $("#dateSel").value = STATE.date;
+  try{ STATE.slate = await api("/api/slate/"+STATE.date); }
+  catch(e){ STATE.slate={exists:false,games:[],matchups:[]}; }
+  render();
+}
+
+function render(){
+  const v=$("#view"), s=STATE.slate;
+  if(STATE.tab==="ledger"){ return renderLedger(); }
+  if(!s || !s.exists){
+    v.innerHTML=`<div class="empty">No data for <b>${STATE.date}</b>.<br/>Click <b>Run</b> to build this slate.</div>`;
+    return;
+  }
+  if(STATE.tab==="slate") renderSlate();
+  else if(STATE.tab==="sheet") renderSheet();
+  else if(STATE.tab==="cards") renderCards();
+  else if(STATE.tab==="matchups") renderMatchups();
+}
+
+function renderSlate(){
+  const s=STATE.slate, sm=s.summary;
+  const banner=`<div class="banner">
+    <div class="stat"><div class="n">${sm.games}</div><div class="l">games</div></div>
+    <div class="stat"><div class="n">${sm.elite}</div><div class="l">elite env</div></div>
+    <div class="stat"><div class="n">${sm.good}</div><div class="l">good env</div></div>
+    <div class="stat"><div class="n">${sm.dead_air.length}</div><div class="l">dead-air</div></div>
+    <div class="stat"><div class="n">${sm.tier1}</div><div class="l">tier-1 HR</div></div>
+    <div class="stat"><div class="n">${sm.matchups}</div><div class="l">matchups</div></div>
+  </div>`;
+  const dead = sm.dead_air.length? `<div class="note">Dead-air (HRs suppressed, TB live): <b>${sm.dead_air.join(", ")}</b></div>`:"";
+  const rows = s.games.map(g=>`<tr>
+    <td><b>${g.matchup}</b></td><td>${g.venue||""}</td>
+    <td>${envBadge(g.env_tier)} <span class="mono">${g.env_score}</span></td>
+    <td class="mono">${g.temp_f??"—"}°</td>
+    <td>${g.wind_mph??"—"} mph ${g.wind_out||""}</td>
+    <td>${g.away_sp||"TBD"} <span class="sp">→ ${g.home_sp||"TBD"}</span></td>
+  </tr>`).join("");
+  $("#view").innerHTML = banner+dead+`<div class="panel"><table>
+    <thead><tr><th>Game</th><th>Venue</th><th>Env</th><th>Temp</th><th>Wind</th><th>Pitchers (away→home)</th></tr></thead>
+    <tbody>${rows}</tbody></table></div>`;
+}
+
+function playerLine(m){
+  return `<div class="card">
+    <div class="hd"><span class="nm">${m.batter} <span class="sp">(${m.team} #${m.order??"?"})</span></span>
+      <span class="sp">vs ${m.opp_sp||m.opp_team} · ${envBadge(m.env_tier)} · play ${num(m.play_score)}</span></div>
+    <div class="ln">B% vs PM <b>${m.barrel_vs_pm??"—"}</b> · vs-hand ${m.barrel_vs_hand??"—"} · platoon ${m.platoon||"?"}
+      · HR ${fmtPct(m.model_hr_prob)} / TB ${fmtPct(m.model_tb_prob)}
+      · EV logs ${(m.ev_logs||"").split("|").join(", ")||"—"} · L30 ${m.l30_avg??"—"}</div>
+    <div class="ln">${tagHtml(m.tags)}</div>
+    <div class="ln bets">🎯 ${(m.bets||"").split("|").filter(Boolean).map(b=>`<b>${b.replace(':',' ')}</b>`).join(" · ")||"—"}</div>
+  </div>`;
+}
+
+function renderSheet(){
+  const ms=[...STATE.slate.matchups].sort((a,b)=>(b.play_score||0)-(a.play_score||0));
+  const tiers={1:[],2:[],3:[]};
+  ms.forEach(m=>{ if([1,2,3].includes(m.tier)) tiers[m.tier].push(m); });
+  const names={1:"🟢 TIER 1 — CORE",2:"🟡 TIER 2 — ENV-BOOSTED",3:"⚪ TIER 3 — LOTTERY"};
+  let html="";
+  for(const t of [1,2,3]){
+    html+=`<div class="tierhd t${t}">${names[t]} (${tiers[t].length})</div>`;
+    html+= tiers[t].length? tiers[t].map(playerLine).join("") : `<div class="sp" style="color:var(--muted)">none</div>`;
+  }
+  $("#view").innerHTML=html;
+}
+
+function renderCards(){
+  const bets=["HR","TB","HRR","Hits"];
+  const ms=STATE.slate.matchups;
+  let html="";
+  for(const bet of bets){
+    const rows=ms.filter(m=>(m.bets||"").split("|").some(b=>b.startsWith(bet+":")))
+      .sort((a,b)=>(b.play_score||0)-(a.play_score||0));
+    html+=`<h3>${bet} (${rows.length})</h3>`;
+    if(!rows.length){ html+=`<div class="sp" style="color:var(--muted)">no plays</div>`; continue; }
+    html+=`<div class="panel"><table><thead><tr>
+      <th>Player</th><th>Tm</th><th>Plt</th><th>vs SP</th><th>Env</th><th>B%PM</th><th>Model</th>
+      <th>Line</th><th>Value</th><th>Tags</th></tr></thead><tbody>`;
+    html+=rows.map(m=>{
+      const line=(m.bets||"").split("|").find(b=>b.startsWith(bet+":"))?.split(":")[1]||"";
+      const model = bet==="HR"?fmtPct(m.model_hr_prob): bet==="TB"?fmtPct(m.model_tb_prob):"—";
+      const plt={fav:"✓",unfav:"✗"}[m.platoon]||"·";
+      return `<tr><td><b>${m.batter}</b></td><td>${m.team}</td><td>${plt}</td>
+        <td>${m.opp_sp||m.opp_team}</td><td>${envBadge(m.env_tier)}</td>
+        <td class="mono">${m.barrel_vs_pm??"—"}</td><td class="mono">${model}</td>
+        <td>${line}</td><td class="${valueCls(m.value)}">${m.value}</td><td>${tagHtml(m.tags)}</td></tr>`;
+    }).join("");
+    html+=`</tbody></table></div>`;
+  }
+  $("#view").innerHTML=html;
+}
+
+const COLS=[
+  ["batter","Player"],["team","Tm"],["opp_team","Opp"],["opp_sp","SP"],["platoon","Plt"],
+  ["env_tier","Env"],["pitcher_score","SP△"],["barrel_vs_pm","B%PM"],["barrel_vs_hand","B%H"],
+  ["model_hr_prob","HR%"],["model_tb_prob","TB%"],["play_score","Play"],["tier","T"],
+  ["bets","Bets"],["value","Val"],["tags","Tags"]
+];
+function renderMatchups(){
+  let ms=[...STATE.slate.matchups];
+  const f=STATE.filter.toLowerCase();
+  if(f) ms=ms.filter(m=>JSON.stringify(m).toLowerCase().includes(f));
+  const {key,dir}=STATE.sort;
+  ms.sort((a,b)=>{const x=a[key],y=b[key];
+    if(x==null)return 1; if(y==null)return -1;
+    return (x>y?1:x<y?-1:0)*dir;});
+  const head=COLS.map(([k,l])=>`<th data-k="${k}">${l}${STATE.sort.key===k?(dir<0?" ▼":" ▲"):""}</th>`).join("");
+  const body=ms.map(m=>"<tr>"+COLS.map(([k])=>{
+    let v=m[k];
+    if(k==="env_tier")return `<td>${envBadge(v)}</td>`;
+    if(k==="value")return `<td class="${valueCls(v)}">${v||"—"}</td>`;
+    if(k==="tags")return `<td>${tagHtml(v)}</td>`;
+    if(k==="model_hr_prob"||k==="model_tb_prob")return `<td class="mono">${fmtPct(v)}</td>`;
+    if(k==="bets")return `<td>${(v||"").split("|").join(" ")||"—"}</td>`;
+    if(["pitcher_score","barrel_vs_pm","barrel_vs_hand","play_score","tier"].includes(k))
+      return `<td class="mono">${v??"—"}</td>`;
+    return `<td>${v??"—"}</td>`;
+  }).join("")+"</tr>").join("");
+  $("#view").innerHTML=`<div class="filters">
+      <input id="mFilter" placeholder="filter… (name, team, tag)" value="${STATE.filter}" style="width:260px"/>
+      <span class="sp" style="color:var(--muted);align-self:center">${ms.length} rows</span></div>
+    <div class="panel"><table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
+  $("#mFilter").oninput=e=>{STATE.filter=e.target.value; const p=e.target.selectionStart; renderMatchups();
+     const el=$("#mFilter"); el.focus(); el.setSelectionRange(p,p);};
+  document.querySelectorAll("th[data-k]").forEach(th=>th.onclick=()=>{
+    const k=th.dataset.k; STATE.sort = STATE.sort.key===k?{key:k,dir:-STATE.sort.dir}:{key:k,dir:-1};
+    renderMatchups();});
+}
+
+async function renderLedger(){
+  let l; try{ l=await api("/api/ledger"); }catch(e){ l={summary:{},rows:[],count:0}; }
+  const bets=["HR","TB","HRR","Hits"];
+  let cards=`<div class="banner">`;
+  for(const bet of bets){
+    const s=l.summary[bet];
+    if(!s){ continue; }
+    const roi=s.roi==null?"—":(s.roi*100>=0?"+":"")+(s.roi*100).toFixed(0)+"%";
+    const hit=s.hit_rate==null?"—":(s.hit_rate*100).toFixed(0)+"%";
+    cards+=`<div class="stat"><div class="l">${bet}</div><div class="n">${hit}</div>
+      <div class="l">${s.w}-${s.l} · ROI ${roi}</div></div>`;
+  }
+  cards+=`</div>`;
+  if(!l.count){ $("#view").innerHTML=`<div class="empty">No graded results yet.<br/>Run a past date then click <b>Grade</b>.</div>`; return; }
+  const rows=[...l.rows].reverse().map(r=>{
+    const won = r.won===true || r.won==="True";
+    return `<tr>
+    <td>${r.date}</td><td><b>${r.batter}</b></td><td>${r.team}</td><td>${r.bet}</td><td>${r.line}</td>
+    <td class="mono">${r.got??"—"}/${r.need}</td>
+    <td class="${won?'v-pos':'v-neg'}">${won?'WIN':'loss'}</td>
+    <td class="mono">${r.profit??""}</td></tr>`;}).join("");
+  $("#view").innerHTML=cards+`<div class="panel"><table><thead><tr>
+    <th>Date</th><th>Player</th><th>Tm</th><th>Bet</th><th>Line</th><th>Got/Need</th><th>Result</th><th>P/L</th>
+    </tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+// --- jobs ---
+let POLL=null;
+function setStatus(cls,txt){ $("#status").innerHTML=`<span class="dot ${cls}"></span>${txt}`; }
+function busy(b){ ["btnRun","btnRefresh","btnGrade"].forEach(id=>$("#"+id).disabled=b); }
+async function trigger(kind){
+  const date = kind==="run" ? ($("#dateInput").value||$("#dateSel").value) : $("#dateSel").value;
+  busy(true); setStatus("run", kind+" "+date+" …");
+  let job;
+  try{ job = await api("/api/"+kind,{method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({date, no_statcast:$("#noStat").checked})}); }
+  catch(e){ busy(false); setStatus("err","failed to start"); return; }
+  clearInterval(POLL);
+  POLL=setInterval(async()=>{
+    let j; try{ j=await api("/api/job/"+job.job_id);}catch(e){return;}
+    if(j.state==="running"||j.state==="queued"){ setStatus("run", kind+" running…"); return; }
+    clearInterval(POLL); busy(false);
+    if(j.state==="error"){ setStatus("err", (j.error||"error").slice(0,60)); return; }
+    const r=j.result||{};
+    setStatus("ok", kind==="grade"?"graded "+date : `done · ${r.games||0}g ${r.tier1||0} T1`);
+    STATE.date=j.date; await loadDates(); $("#dateSel").value=j.date;
+    if(kind==="grade"){ STATE.tab="ledger"; setTab(); } else { await loadSlate(); }
+  }, 1500);
+}
+
+function setTab(){
+  document.querySelectorAll("#tabs button").forEach(b=>b.classList.toggle("active",b.dataset.tab===STATE.tab));
+  render();
+}
+document.querySelectorAll("#tabs button").forEach(b=>b.onclick=()=>{STATE.tab=b.dataset.tab; setTab();});
+$("#dateSel").onchange=e=>{STATE.date=e.target.value; loadSlate();};
+$("#btnRun").onclick=()=>trigger("run");
+$("#btnRefresh").onclick=()=>trigger("refresh");
+$("#btnGrade").onclick=()=>trigger("grade");
+
+(async()=>{ await loadDates(); await loadSlate(); setStatus("ok","ready"); })();
+</script>
+</body>
+</html>

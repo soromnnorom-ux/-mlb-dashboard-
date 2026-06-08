@@ -418,5 +418,21 @@ def schedule_install(
     typer.echo(f"Wrote {out}\nInstall with:  crontab -l 2>/dev/null | cat - {out} | crontab -")
 
 
+@app.command()
+def serve(
+    host: str = typer.Option("127.0.0.1", help="bind host"),
+    port: int = typer.Option(8000, help="bind port"),
+    reload: bool = typer.Option(False, "--reload", help="auto-reload (dev)"),
+):
+    """Launch the local web dashboard (run/refresh/grade + slate/cards/ledger)."""
+    try:
+        import uvicorn
+    except ImportError:
+        typer.echo("Install web deps:  pip install fastapi uvicorn")
+        raise typer.Exit(1)
+    typer.echo(f"🌐 hrplaybook dashboard -> http://{host}:{port}")
+    uvicorn.run("hrplaybook.web.app:app", host=host, port=port, reload=reload)
+
+
 if __name__ == "__main__":
     app()
