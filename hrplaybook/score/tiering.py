@@ -8,7 +8,7 @@ from ..config import Config
 from ..model.schemas import Matchup
 from . import env_tier_rank
 from .batter import score_batter
-from .edges import edge_bonus, recency_fade
+from .edges import edge_bonus, platoon_adjust, recency_fade
 
 
 def score_matchup(m: Matchup, cfg: Config) -> Matchup:
@@ -21,12 +21,19 @@ def score_matchup(m: Matchup, cfg: Config) -> Matchup:
 
     bonus, etags = edge_bonus(m, cfg)
     m.edge_bonus = bonus
+
+    fade = recency_fade(m, cfg)
+    platoon = platoon_adjust(m, cfg)   # also sets m.platoon
+    if m.platoon == "fav":
+        etags = etags + ["PLATOON+"]
+    elif m.platoon == "unfav":
+        etags = etags + ["PLATOON-"]
     # merge tags (batter tags already on the batter object)
     m.tags = list(dict.fromkeys(list(m.batter.tags) + etags))
 
-    fade = recency_fade(m, cfg)
     m.play_score = round(
-        m.env_score + m.pitcher_score + m.batter_score + m.edge_bonus + fade, 2
+        m.env_score + m.pitcher_score + m.batter_score + m.edge_bonus
+        + fade + platoon, 2
     )
 
     m.tier = _assign_tier(m, cfg)

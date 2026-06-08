@@ -8,11 +8,12 @@ import typer
 
 from .cache import DiskCache
 from .config import Config, load_config
+from .grade import append_ledger, grade_picks, summarize
 from .http import Client
-from .model.enrich import attach_arsenal, enrich_batter
+from .model.enrich import attach_arsenal, bullpen_hr9, enrich_batter
 from .model.schemas import Batter, Game, Matchup, Pitcher, load_parks
 from .report import cards, cheatsheet, csvout
-from .score import env_tier_rank
+from .report.picks import load_picks, write_picks
 from .score.bettypes import map_bets
 from .score.environment import score_environment
 from .score.pitcher import score_pitcher
@@ -41,6 +42,14 @@ def _make_client(cfg: Config, offline: bool) -> Client:
 
 def _opp(side: str) -> str:
     return "away" if side == "home" else "home"
+
+
+def _weak_non_threat(b: Batter) -> bool:
+    """Clear non-HR-threat by season profile -> skip the per-batter Statcast pull
+    (saves requests). barrel_vs_pm falls back to season barrel%; TB/Hits cards
+    still work off season contact metrics."""
+    return (b.barrel_pct is not None and b.barrel_pct < 2.0
+            and (b.slg or 0) < 0.330)
 
 
 def _lineup_for_side(box: Optional[dict], side: str, game: Game,
@@ -93,6 +102,8 @@ def build_slate(
     use_statcast: bool = True,
     use_odds: bool = True,
     limit_games: Optional[int] = None,
+    full_statcast: bool = False,
+    progress: bool = True,
 ) -> Tuple[List[Game], Dict[int, Pitcher], List[Matchup], List[str]]:
     warnings: List[str] = []
     parks = load_parks(cfg.parks_path)
@@ -133,13 +144,32 @@ def build_slate(
                 if p:
                     pitchers_used[pid] = p
 
+    # handedness for the probable starters (one batched call) -> platoon edge
+    people = statsapi.parse_people(statsapi.fetch_people(client, list(pitchers_used)))
+    for pid, info in people.items():
+        if pid in pitchers_used and info.get("throws"):
+            pitchers_used[pid].throws = info["throws"]
+
     # 6. projected fallback lineups (one page for the whole slate)
     projected = rotowire.parse_rotowire(rotowire.fetch_lineups_html(client, date))
+
+    # 6b. bullpen exposure: opponent reliever HR/9 per team (LATE_HR edge)
+    team_ids: Dict[str, int] = {}
+    for g in games:
+        if g.home_team_id:
+            team_ids[g.home_team] = g.home_team_id
+        if g.away_team_id:
+            team_ids[g.away_team] = g.away_team_id
+    bullpen: Dict[str, Optional[float]] = {}
+    for abbr, tid in team_ids.items():
+        roster = statsapi.parse_roster_pitchers(statsapi.fetch_roster(client, tid))
+        bullpen[abbr] = bullpen_hr9(roster, pitcher_pool, cfg)
 
     # 7. lineups -> batters -> matchups
     matchups: List[Matchup] = []
     pulled_at = now_stamp()
     win_start = window_start(date, cfg.recent_window_days)
+    stat_n = 0
     for g in games:
         box = statsapi.fetch_boxscore(client, g.game_pk)
         for side in ("home", "away"):
@@ -157,18 +187,24 @@ def build_slate(
                 if entry.get("bats") and not b.bats:
                     b.bats = entry["bats"]
 
-                if use_statcast and b.player_id > 0:
+                # pull the Statcast window unless disabled or a clear non-threat
+                if use_statcast and b.player_id > 0 and not (
+                        not full_statcast and _weak_non_threat(b)):
                     text = savant.fetch_statcast_batter(client, b.player_id, win_start, date)
                     enrich_batter(b, savant.parse_statcast(text),
                                   savant.parse_pa_events(text), opp_pitcher, cfg)
+                    stat_n += 1
+                    if progress and stat_n % 20 == 0:
+                        typer.echo(f"   …statcast pulled for {stat_n} batters", err=True)
                 elif b.barrel_vs_pm is None:
-                    b.barrel_vs_pm = b.barrel_pct  # fallback when statcast disabled
+                    b.barrel_vs_pm = b.barrel_pct  # fallback when statcast skipped
 
                 m = Matchup(batter=b, pitcher=opp_pitcher, game=g, side=side,
                             opp_team=opp_team)
                 m.env_score = g.env_score
                 m.env_tier = g.env_tier
                 m.pitcher_score = opp_pitcher.pitcher_score if opp_pitcher else 0
+                m.opp_bullpen_hr9 = bullpen.get(opp_team)
                 score_matchup(m, cfg)
                 map_bets(m, cfg)
                 matchups.append(m)
@@ -176,13 +212,17 @@ def build_slate(
     # 8. cap HR plays
     finalize_tiers(matchups, cfg)
 
-    # 9. value filter (optional)
+    # 9. value filter (model probs always; +EV verdict only when odds exist)
+    odds_maps: Dict[str, Dict[int, int]] = {"HR": {}, "TB": {}}
     if use_odds:
-        provider = make_provider(cfg, client)
+        provider = make_provider(cfg, client, name_index)
         if getattr(provider, "enabled", False):
-            apply_value(matchups, provider.hr_odds(date), cfg)
+            odds_maps = provider.odds(date)
+            if not any(odds_maps.values()):
+                warnings.append("Odds provider returned no props; value=unknown.")
         else:
-            warnings.append("No odds provider configured; value=unknown.")
+            warnings.append("No odds provider configured; value=unknown (model probs shown).")
+    apply_value(matchups, odds_maps, cfg)
 
     # staleness / network warnings
     if client.offline:
@@ -201,6 +241,7 @@ def _write_outputs(date: str, games, pitchers, matchups, cfg, warnings) -> Path:
     csvout.write_all(outdir, games, pitchers, matchups)
     cheatsheet.render(date, games, matchups, cfg, outdir, warnings)
     cards.write_cards(outdir, matchups, cfg, date)
+    write_picks(outdir, matchups, date)
     return outdir
 
 
@@ -215,6 +256,8 @@ def run(
     max_plays: Optional[int] = typer.Option(None, help="cap on HR plays"),
     no_statcast: bool = typer.Option(False, "--no-statcast",
                                      help="skip per-batter Statcast window (faster)"),
+    full_statcast: bool = typer.Option(False, "--full-statcast",
+                                       help="pull Statcast for every batter (no non-threat pre-filter)"),
     offline: bool = typer.Option(False, "--offline", help="use cache only, no network"),
     limit: Optional[int] = typer.Option(None, help="limit number of games (testing)"),
     config: Optional[str] = typer.Option(None, help="path to config.yaml"),
@@ -230,7 +273,7 @@ def run(
     try:
         games, pitchers, matchups, warnings = build_slate(
             date, cfg, client, use_statcast=not no_statcast,
-            use_odds=not no_odds, limit_games=limit)
+            use_odds=not no_odds, limit_games=limit, full_statcast=full_statcast)
     finally:
         client.close()
     outdir = _write_outputs(date, games, pitchers, matchups, cfg, warnings)
@@ -262,6 +305,71 @@ def refresh(
     outdir = _write_outputs(date, games, pitchers, matchups, cfg, warnings)
     confirmed = sum(1 for m in matchups if m.batter.lineup_state == "confirmed")
     typer.echo(f"🔄 refreshed {date}: {confirmed} confirmed batter slots -> {outdir}/")
+
+
+@app.command()
+def grade(
+    date: str = typer.Option("yesterday", help="date of picks to grade (YYYY-MM-DD)"),
+    config: Optional[str] = typer.Option(None),
+):
+    """Grade a prior day's picks against actual box-score results and update the
+    rolling ledger (out/_ledger.csv)."""
+    cfg = load_config(config)
+    date = resolve_date(date)
+    outdir = Path("out") / date
+    picks = load_picks(outdir)
+    if not picks:
+        typer.echo(f"No picks.json under {outdir}/ — run `hrplaybook run --date {date}` first.")
+        raise typer.Exit(1)
+
+    client = _make_client(cfg, offline=False)
+    final_states = {"Final", "Game Over", "Completed Early"}
+    results: Dict[int, dict] = {}
+    n_final = 0
+    try:
+        games = statsapi.parse_schedule(statsapi.fetch_schedule(client, date))
+        for g in games:
+            if g.status not in final_states:
+                continue
+            n_final += 1
+            box = statsapi.fetch_boxscore(client, g.game_pk)
+            results.update(statsapi.parse_boxscore_results(box))
+    finally:
+        client.close()
+
+    rows = grade_picks(picks, results)
+    summary = summarize(rows)
+    append_ledger(Path("out") / "_ledger.csv", rows)
+
+    decided = [r for r in rows if r["won"] is not None]
+    typer.echo(f"📊 {date}: graded {len(decided)} bets across {n_final} final games "
+               f"({len(rows) - len(decided)} void)\n")
+    typer.echo(f"{'Bet':<6} {'W-L':>7} {'Hit%':>6} {'ROI':>7}")
+    for bet in ("HR", "TB", "HRR", "Hits"):
+        s = summary.get(bet)
+        if not s:
+            continue
+        wl = f"{s['w']}-{s['l']}"
+        hr = f"{s['hit_rate']*100:.0f}%" if s["hit_rate"] is not None else "—"
+        roi = f"{s['roi']*100:+.0f}%" if s["roi"] is not None else "—"
+        typer.echo(f"{bet:<6} {wl:>7} {hr:>6} {roi:>7}")
+
+    # all-time ledger snapshot
+    ledger = Path("out") / "_ledger.csv"
+    if ledger.exists():
+        import csv as _csv
+        all_rows = []
+        for r in _csv.DictReader(ledger.open()):
+            all_rows.append({
+                "bet": r["bet"],
+                "won": (r["won"] == "True") if r["won"] in ("True", "False") else None,
+                "profit": float(r["profit"]) if r.get("profit") not in (None, "", "None") else None,
+            })
+        allt = summarize(all_rows)
+        tot_w = sum(s["w"] for s in allt.values())
+        tot_l = sum(s["l"] for s in allt.values())
+        typer.echo(f"\n🧾 all-time ledger: {tot_w}-{tot_l} "
+                   f"({tot_w/(tot_w+tot_l)*100:.0f}% hit)" if (tot_w + tot_l) else "\n🧾 ledger empty")
 
 
 @app.command()

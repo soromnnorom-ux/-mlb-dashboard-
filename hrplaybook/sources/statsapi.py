@@ -74,6 +74,8 @@ def parse_schedule(data: Optional[dict]) -> List[Game]:
                 venue_name=venue.get("name", ""),
                 home_team=home["team"].get("abbreviation", ""),
                 away_team=away["team"].get("abbreviation", ""),
+                home_team_id=home["team"].get("id"),
+                away_team_id=away["team"].get("id"),
                 home_pitcher_id=hp.get("id"),
                 away_pitcher_id=ap.get("id"),
                 home_pitcher_name=hp.get("fullName"),
@@ -111,6 +113,51 @@ def parse_lineup(box: Optional[dict], side: str) -> List[dict]:
             "position": pdata.get("position", {}).get("abbreviation", ""),
             "team": abbrev,
         })
+    return out
+
+
+def fetch_roster(client: Client, team_id: int) -> Optional[dict]:
+    url = f"{BASE}/teams/{team_id}/roster"
+    return client.get_json("roster", url, {"rosterType": "active"})
+
+
+def parse_roster_pitchers(data: Optional[dict]) -> List[int]:
+    """Return active-roster pitcher person ids for a team."""
+    out: List[int] = []
+    if not data:
+        return out
+    for r in data.get("roster", []):
+        pos = (r.get("position") or {}).get("abbreviation", "")
+        code = (r.get("position") or {}).get("code", "")
+        if pos == "P" or code == "1":
+            pid = (r.get("person") or {}).get("id")
+            if pid:
+                out.append(pid)
+    return out
+
+
+def parse_boxscore_results(box: Optional[dict]) -> Dict[int, dict]:
+    """Per-batter actual batting line for grading. {player_id: {hr,tb,h,rbi,r,ab}}."""
+    out: Dict[int, dict] = {}
+    if not box:
+        return out
+    for side in ("home", "away"):
+        players = box.get("teams", {}).get(side, {}).get("players", {}) or {}
+        for pdata in players.values():
+            bat = (pdata.get("stats") or {}).get("batting") or {}
+            if not bat:
+                continue
+            pid = (pdata.get("person") or {}).get("id")
+            if pid is None:
+                continue
+            out[pid] = {
+                "hr": bat.get("homeRuns", 0) or 0,
+                "tb": bat.get("totalBases", 0) or 0,
+                "h": bat.get("hits", 0) or 0,
+                "rbi": bat.get("rbi", 0) or 0,
+                "r": bat.get("runs", 0) or 0,
+                "ab": bat.get("atBats", 0) or 0,
+            }
     return out
 
 

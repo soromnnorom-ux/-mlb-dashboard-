@@ -26,7 +26,7 @@ BATTER_SELECTIONS = (
     "hard_hit_percent,launch_angle_avg,flyballs_percent,pull_percent"
 )
 PITCHER_SELECTIONS = (
-    "player_id,player_name,pa,p_formatted_ip,p_era,p_game,home_run,"
+    "player_id,player_name,pa,p_formatted_ip,p_era,p_game,p_gs,home_run,"
     "barrel_batted_rate,exit_velocity_avg,hard_hit_percent,k_percent,bb_percent,"
     "whiff_percent,woba,xwoba,flyballs_percent,groundballs_percent"
 )
@@ -131,6 +131,7 @@ def parse_pitcher_leaderboard(text: Optional[str], season: int) -> Dict[int, Pit
             whiff_pct=to_float(row.get("whiff_percent")),
             fb_pct=fb_pct,
             gb_pct=to_float(row.get("groundballs_percent")),
+            gs=to_int(row.get("p_gs")) or 0,
             woba=to_float(row.get("woba")),
             xwoba=to_float(row.get("xwoba")),
         )
@@ -187,6 +188,8 @@ def parse_statcast(text: Optional[str]) -> List[dict]:
             "launch_angle": to_float(row.get("launch_angle")),
             "hit_distance_sc": to_float(row.get("hit_distance_sc")),
             "bb_type": (row.get("bb_type") or "").strip(),
+            "stand": (row.get("stand") or "").strip().upper(),       # batter hand
+            "p_throws": (row.get("p_throws") or "").strip().upper(),  # pitcher hand
         })
     return out
 

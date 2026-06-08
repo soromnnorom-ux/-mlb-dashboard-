@@ -78,6 +78,30 @@ class OddsConfig(BaseModel):
     provider: str = ""
     api_key_env: str = "ODDS_API_KEY"
     region: str = "us"
+    books: str = ""                  # optional CSV of bookmaker keys to keep (best price if blank)
+
+
+class ValueModel(BaseModel):
+    """Transparent empirical priors for the model probabilities (tunable)."""
+    league_hr_pa: float = 0.0345     # league HR per plate appearance
+    league_barrel: float = 8.0       # league barrel% of BBE baseline
+    league_hr9: float = 1.25         # league starter HR/9 baseline
+    pa_top: float = 4.6              # expected PA for the leadoff slot
+    pa_decay: float = 0.15           # PA lost per lineup slot down
+    pa_floor: float = 3.4
+    platoon_fav: float = 1.10        # HR-rate multiplier with the platoon edge
+    platoon_unfav: float = 0.90
+    edge_threshold: float = 0.05     # model must beat implied by this fraction for +EV
+
+
+class Platoon(BaseModel):
+    fav_bonus: float = 1.0           # play_score nudge with the platoon edge
+    unfav_penalty: float = -1.0
+
+
+class Bullpen(BaseModel):
+    hr9_high: float = 1.3            # opponent bullpen HR/9 that triggers LATE_HR
+    reliever_max_gs: int = 2         # games-started ceiling to count as a reliever
 
 
 class Config(BaseModel):
@@ -90,6 +114,9 @@ class Config(BaseModel):
     hot_contact: HotContact = Field(default_factory=HotContact)
     missed_hr: MissedHR = Field(default_factory=MissedHR)
     recency_fade_weight: float = -1
+    platoon: Platoon = Field(default_factory=Platoon)
+    bullpen: Bullpen = Field(default_factory=Bullpen)
+    value_model: ValueModel = Field(default_factory=ValueModel)
 
     elite_parks: List[str] = Field(default_factory=lambda: ["CIN", "BAL", "TOR", "COL"])
     solid_parks: List[str] = Field(default_factory=lambda: ["LAD", "NYM", "CHC"])
@@ -103,7 +130,8 @@ class Config(BaseModel):
     rate_limit_per_sec: float = 1
     cache_ttl_minutes: Dict[str, int] = Field(
         default_factory=lambda: {
-            "schedule": 60, "lineups": 5, "savant": 720, "weather": 60, "people": 1440
+            "schedule": 60, "lineups": 5, "savant": 720, "weather": 60,
+            "people": 1440, "roster": 1440, "odds": 10, "results": 1440,
         }
     )
     user_agent: str = "hrplaybook/1.0 (personal use)"

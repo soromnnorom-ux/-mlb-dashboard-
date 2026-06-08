@@ -126,6 +126,8 @@ def _matchup_rows(matchups: List[Matchup]) -> List[dict]:
             "opp_team": m.opp_team,
             "opp_sp": p.name if p else None,
             "opp_sp_throws": p.throws if p else None,
+            "platoon": m.platoon,
+            "opp_bullpen_hr9": m.opp_bullpen_hr9,
             "env_tier": m.env_tier,
             "env_score": m.env_score,
             "pitcher_score": m.pitcher_score,
@@ -135,6 +137,7 @@ def _matchup_rows(matchups: List[Matchup]) -> List[dict]:
             "hardhit_pct": b.hardhit_pct,
             "barrel_vs_pm": b.barrel_vs_pm,
             "barrel_vs_pm_bbe": b.barrel_vs_pm_bbe,
+            "barrel_vs_hand": b.barrel_vs_hand,
             "iso": b.iso,
             "la_avg": b.la_avg,
             "ev_logs": "|".join(str(int(x)) for x in b.recent_ev_logs),
@@ -145,6 +148,10 @@ def _matchup_rows(matchups: List[Matchup]) -> List[dict]:
             "tier": m.tier,
             "tags": "|".join(m.tags),
             "bets": "|".join(f"{k}:{v}" for k, v in m.bets.items()),
+            "model_hr_prob": m.prob_by_bet.get("HR"),
+            "model_tb_prob": m.prob_by_bet.get("TB"),
+            "hr_odds": m.odds_by_bet.get("HR"),
+            "hr_ev": m.ev_by_bet.get("HR"),
             "value": m.value,
         })
     return rows

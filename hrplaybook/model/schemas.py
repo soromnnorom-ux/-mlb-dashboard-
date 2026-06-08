@@ -53,6 +53,7 @@ class Pitcher:
     whiff_pct: Optional[float] = None
     fb_pct: Optional[float] = None           # flyballs allowed %
     gb_pct: Optional[float] = None
+    gs: Optional[int] = None                 # games started (reliever if ~0)
     woba: Optional[float] = None
     xwoba: Optional[float] = None
     arsenal: Dict[str, float] = field(default_factory=dict)  # pitch_type -> usage %
@@ -89,6 +90,8 @@ class Batter:
     pull_pct: Optional[float] = None
     barrel_vs_pm: Optional[float] = None     # barrel% on the pitcher's pitch mix
     barrel_vs_pm_bbe: int = 0
+    barrel_vs_hand: Optional[float] = None   # barrel% vs the opposing SP's hand
+    barrel_vs_hand_bbe: int = 0
     recent_ev_logs: List[float] = field(default_factory=list)
     l30_h: Optional[int] = None
     l30_ab: Optional[int] = None
@@ -114,6 +117,8 @@ class Game:
     venue_name: str
     home_team: str
     away_team: str
+    home_team_id: Optional[int] = None
+    away_team_id: Optional[int] = None
     home_pitcher_id: Optional[int] = None
     away_pitcher_id: Optional[int] = None
     home_pitcher_name: Optional[str] = None
@@ -143,12 +148,19 @@ class Matchup:
     perfect_profile: bool = False
     gate_passed: bool = False
     gate_kind: str = ""                      # elite | practical
+    platoon: str = "neutral"                 # fav | unfav | neutral
+    opp_bullpen_hr9: Optional[float] = None
     tier: Optional[int] = None
     tags: List[str] = field(default_factory=list)
-    model_prob: Optional[float] = None
-    implied_prob: Optional[float] = None
-    value: str = "unknown"                   # +EV | fair | -EV | unknown
+    model_prob: Optional[float] = None       # model P(>=1 HR)
+    implied_prob: Optional[float] = None      # implied P(HR) from odds
+    value: str = "unknown"                   # +EV | fair | -EV | unknown (HR)
     bets: Dict[str, str] = field(default_factory=dict)
+    # per-bet odds/EV when an odds provider is wired
+    odds_by_bet: Dict[str, int] = field(default_factory=dict)
+    prob_by_bet: Dict[str, float] = field(default_factory=dict)
+    ev_by_bet: Dict[str, float] = field(default_factory=dict)
+    value_by_bet: Dict[str, str] = field(default_factory=dict)
 
 
 def load_parks(path: str | Path) -> Dict[str, Park]:

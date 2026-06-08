@@ -17,6 +17,27 @@ AB_OUT_EVENTS = {
 }
 
 
+def bullpen_hr9(roster_ids: List[int], pool: Dict[int, Pitcher], cfg: Config) -> Optional[float]:
+    """Aggregate reliever HR/9 for a team from its active-roster pitchers.
+
+    Relievers = roster pitchers in the leaderboard pool with games-started at or
+    below the configured ceiling. Returns innings-weighted HR/9, or None when no
+    reliever data resolved (so the LATE_HR edge simply doesn't fire).
+    """
+    tot_hr, tot_ip = 0.0, 0.0
+    for pid in roster_ids:
+        p = pool.get(pid)
+        if p is None or p.ip is None or p.hr is None:
+            continue
+        if (p.gs or 0) > cfg.bullpen.reliever_max_gs:
+            continue
+        tot_hr += p.hr
+        tot_ip += p.ip
+    if tot_ip <= 0:
+        return None
+    return round(tot_hr / tot_ip * 9.0, 2)
+
+
 def attach_arsenal(pitcher: Pitcher, mix: Optional[Dict[str, float]]) -> Pitcher:
     if not mix:
         return pitcher
@@ -52,18 +73,42 @@ def enrich_batter(
     """Mutate `batter` in place with matchup- and recent-window-derived fields."""
     batter.recent_window_used = bool(batted_balls or pa_events)
 
+    # fill batter handedness from the most common Statcast `stand` if unknown
+    if not batter.bats:
+        stands = [b.get("stand") for b in batted_balls if b.get("stand") in ("L", "R")]
+        if stands:
+            batter.bats = max(set(stands), key=stands.count)
+
+    p_hand = pitcher.throws if pitcher else None
+
+    def _barrel_pct(rows: List[dict]):
+        if not rows:
+            return None, 0
+        bar = sum(1 for b in rows if is_barrel(b["launch_speed"], b["launch_angle"]))
+        return round(bar / len(rows) * 100.0, 1), len(rows)
+
+    # --- barrel% vs the opposing pitcher's hand (platoon-aware signal) ------
+    if p_hand in ("L", "R"):
+        vs_hand = [b for b in batted_balls if b.get("p_throws") == p_hand]
+        bvh, n = _barrel_pct(vs_hand)
+        if n >= 8:
+            batter.barrel_vs_hand, batter.barrel_vs_hand_bbe = bvh, n
+
     # --- barrel% vs the pitcher's pitch mix --------------------------------
+    # Prefer pitch-mix AND same-hand when that keeps a usable sample; otherwise
+    # mix-only; otherwise the season barrel%.
     mix = pitcher.arsenal if pitcher else {}
     prim = primary_pitches(mix)
-    relevant = [b for b in batted_balls if (not prim or b["pitch_type"] in prim)]
-    if len(relevant) >= 5:
-        barrels = sum(1 for b in relevant if is_barrel(b["launch_speed"], b["launch_angle"]))
-        batter.barrel_vs_pm = round(barrels / len(relevant) * 100.0, 1)
-        batter.barrel_vs_pm_bbe = len(relevant)
+    mix_rows = [b for b in batted_balls if (not prim or b["pitch_type"] in prim)]
+    hand_mix_rows = [b for b in mix_rows
+                     if p_hand in ("L", "R") and b.get("p_throws") == p_hand]
+    if len(hand_mix_rows) >= 5:
+        batter.barrel_vs_pm, batter.barrel_vs_pm_bbe = _barrel_pct(hand_mix_rows)
+    elif len(mix_rows) >= 5:
+        batter.barrel_vs_pm, batter.barrel_vs_pm_bbe = _barrel_pct(mix_rows)
     else:
-        # too few batted balls vs this mix -> fall back to season barrel%
         batter.barrel_vs_pm = batter.barrel_pct
-        batter.barrel_vs_pm_bbe = len(relevant)
+        batter.barrel_vs_pm_bbe = len(mix_rows)
         if batter.recent_window_used:
             batter.tags.append("SMALL_PM_SAMPLE")
 

@@ -18,37 +18,60 @@ TITLES = {
 }
 
 
+def _pct(p) -> str:
+    return f"{p*100:.0f}%" if p is not None else "—"
+
+
+def _odds_cell(m: Matchup, bet: str) -> str:
+    o = m.odds_by_bet.get(bet)
+    if o is None:
+        return "—"
+    ev = m.ev_by_bet.get(bet)
+    return f"{o:+d} ({ev:+.2f})" if ev is not None else f"{o:+d}"
+
+
 def _row(m: Matchup, bet: str) -> str:
     b = m.batter
-    return "| {name} | {team} | {sp} | {env} | {wk} | {pm} | {ev} | {tags} | {line} | {val} |".format(
+    val = m.value_by_bet.get(bet, m.value)
+    return ("| {name} | {team} | {plat} | {sp} | {env} | {wk} | {pm} | {model} "
+            "| {ev} | {tags} | {line} | {odds} | {val} |").format(
         name=b.name,
         team=b.team,
+        plat={"fav": "✓", "unfav": "✗", "neutral": "·"}.get(m.platoon, "·"),
         sp=(m.pitcher.name if m.pitcher else m.opp_team),
         env=f"{m.env_tier}({m.env_score})",
         wk=pitcher_summary(m.pitcher),
         pm=fmt_pct(b.barrel_vs_pm),
+        model=_pct(m.prob_by_bet.get(bet)),
         ev=ev_logs_str(b.recent_ev_logs, "md"),
         tags=" ".join(f"`{t}`" for t in m.tags) or "—",
         line=m.bets.get(bet, ""),
-        val=m.value,
+        odds=_odds_cell(m, bet),
+        val=val,
     )
 
 
 def _card_md(bet: str, matchups: List[Matchup], cfg: Config, date: str) -> str:
+    pool = [m for m in matchups if bet in m.bets]
+    priced = any(m.ev_by_bet.get(bet) is not None for m in pool)
+    # rank by EV when odds are priced; otherwise by the composite play score
     rows = sorted(
-        [m for m in matchups if bet in m.bets],
-        key=lambda m: m.play_score, reverse=True,
+        pool,
+        key=lambda m: (m.ev_by_bet.get(bet, float("-inf")) if priced else m.play_score),
+        reverse=True,
     )
     if bet == "HR":
         rows = rows[: cfg.max_plays]
+    rank_note = "ranked by EV" if priced else "ranked by play score"
     head = (
         f"# {TITLES[bet]} — {date}\n\n"
-        f"_Generated {now_stamp()} · {len(rows)} plays_\n\n"
-        "| Player | Team | vs SP | Env | SP weakness | B% vs PM | EV logs | Tags | Line | Value |\n"
-        "|---|---|---|---|---|---|---|---|---|---|\n"
+        f"_Generated {now_stamp()} · {len(rows)} plays · {rank_note}_\n\n"
+        "| Player | Team | Plt | vs SP | Env | SP weakness | B% vs PM | Model | "
+        "EV logs | Tags | Line | Odds (EV) | Value |\n"
+        "|---|---|---|---|---|---|---|---|---|---|---|---|---|\n"
     )
     if not rows:
-        return head + "| _no plays_ | | | | | | | | | |\n"
+        return head + "| _no plays_ |" + " |" * 12 + "\n"
     return head + "\n".join(_row(m, bet) for m in rows) + "\n"
 
 
