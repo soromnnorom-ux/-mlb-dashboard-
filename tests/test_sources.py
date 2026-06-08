@@ -88,3 +88,15 @@ def test_parse_rotowire_inline():
     assert out["BOS"][0]["name"] == "Jarren Duran"
     assert out["NYY"][0]["name"] == "Aaron Judge"
     assert out["NYY"][0]["bats"] == "R"
+
+
+def test_parse_rotowire_real_fixture():
+    """Regression: real markup has decoy 'is-visit'/'is-home' substrings before
+    the real lists -- away hitters must NOT land under the home team."""
+    from pathlib import Path
+    frag = (Path(__file__).parent / "fixtures" / "rotowire_bos_tb.html").read_text()
+    out = rotowire.parse_rotowire(frag)
+    assert "Jarren Duran" in [p["name"] for p in out["BOS"]]   # away team
+    assert "Yandy Diaz" in [p["name"] for p in out["TB"]]      # home team
+    # the away hitter must never appear under the home team
+    assert "Jarren Duran" not in [p["name"] for p in out.get("TB", [])]

@@ -50,11 +50,16 @@ def parse_rotowire(html: Optional[str]) -> Dict[str, List[dict]]:
         if len(abbrs) < 2:
             continue
         away, home = _norm_abbr(abbrs[0]), _norm_abbr(abbrs[1])
-        i_visit = chunk.find("is-visit")
-        i_home = chunk.find("is-home")
+        # Anchor on the actual player-list <ul>s (the full class), NOT the bare
+        # substrings "is-visit"/"is-home" -- those also occur elsewhere in the
+        # markup and matching them swaps the two teams. Bound each list at </ul>.
+        i_visit = chunk.find("lineup__list is-visit")
+        i_home = chunk.find("lineup__list is-home")
         if i_visit == -1 or i_home == -1:
             continue
-        regions = ((away, chunk[i_visit:i_home]), (home, chunk[i_home:]))
+        visit_region = chunk[i_visit:chunk.find("</ul>", i_visit)]
+        home_region = chunk[i_home:chunk.find("</ul>", i_home)]
+        regions = ((away, visit_region), (home, home_region))
         for team, region in regions:
             players = []
             for order, m in enumerate(_PLAYER_RE.finditer(region), start=1):
