@@ -54,13 +54,17 @@ def parse_statsapi_weather(block: Optional[dict]) -> Weather:
     return w
 
 
-def parse_schedule(data: Optional[dict]) -> List[Game]:
+def parse_schedule(data: Optional[dict], game_types: Optional[set] = None) -> List[Game]:
+    """Parse the schedule. `game_types` (e.g. {"R"}) filters by StatsAPI gameType
+    (R=regular, S=spring, D/L/W/F=postseason); None keeps all."""
     games: List[Game] = []
     if not data:
         return games
     for d in data.get("dates", []):
         date = d.get("date")
         for g in d.get("games", []):
+            if game_types and g.get("gameType") not in game_types:
+                continue
             home = g["teams"]["home"]
             away = g["teams"]["away"]
             venue = g.get("venue", {}) or {}

@@ -104,12 +104,13 @@ def build_slate(
     limit_games: Optional[int] = None,
     full_statcast: bool = False,
     progress: bool = True,
+    game_types: Optional[set] = None,
 ) -> Tuple[List[Game], Dict[int, Pitcher], List[Matchup], List[str]]:
     warnings: List[str] = []
     parks = load_parks(cfg.parks_path)
 
     # 1. slate
-    games = statsapi.parse_schedule(statsapi.fetch_schedule(client, date))
+    games = statsapi.parse_schedule(statsapi.fetch_schedule(client, date), game_types)
     if limit_games:
         games = games[:limit_games]
     if not games:
@@ -305,6 +306,67 @@ def refresh(
     outdir = _write_outputs(date, games, pitchers, matchups, cfg, warnings)
     confirmed = sum(1 for m in matchups if m.batter.lineup_state == "confirmed")
     typer.echo(f"🔄 refreshed {date}: {confirmed} confirmed batter slots -> {outdir}/")
+
+
+@app.command()
+def backfill(
+    start: str = typer.Option(..., help="first date YYYY-MM-DD"),
+    end: str = typer.Option("today", help="last date (inclusive)"),
+    lite: bool = typer.Option(True, help="skip per-batter Statcast (much faster; "
+                              "season-stat picks only)"),
+    config: Optional[str] = typer.Option(None),
+):
+    """Backfill a date range: build picks + grade vs results into out/_ledger.csv.
+
+    One cached client is reused across all dates (season leaderboards/rosters are
+    fetched once). LITE mode skips the per-batter Statcast pull. NOTE: season
+    leaderboards are full-season aggregates -> look-ahead bias; this is a
+    directional backtest, not a true point-in-time forward test.
+    """
+    import datetime as _dt
+
+    cfg = load_config(config)
+    d0 = _dt.date.fromisoformat(resolve_date(start))
+    d1 = _dt.date.fromisoformat(resolve_date(end))
+    client = _make_client(cfg, offline=False)
+    final_states = {"Final", "Game Over", "Completed Early"}
+    built = graded_dates = decided = skipped = errors = 0
+    cur = d0
+    try:
+        while cur <= d1:
+            ds = cur.isoformat()
+            cfg.season = cur.year
+            try:
+                games, pitchers, matchups, warnings = build_slate(
+                    ds, cfg, client, use_statcast=not lite, use_odds=False,
+                    progress=False, game_types={"R"})  # regular season only
+                if not games:
+                    skipped += 1
+                    cur += _dt.timedelta(days=1)
+                    continue
+                _write_outputs(ds, games, pitchers, matchups, cfg, warnings)
+                built += 1
+                results: Dict[int, dict] = {}
+                for g in games:
+                    if g.status in final_states:
+                        results.update(statsapi.parse_boxscore_results(
+                            statsapi.fetch_boxscore(client, g.game_pk)))
+                rows = grade_picks(load_picks(Path("out") / ds), results)
+                append_ledger(Path("out") / "_ledger.csv", rows)
+                nd = sum(1 for r in rows if r["won"] is not None)
+                decided += nd
+                if nd:
+                    graded_dates += 1
+                typer.echo(f"  {ds}: {len(games)}g, {len(matchups)} mu, {nd} graded "
+                           f"[{client.cache.summary()}]", err=True)
+            except Exception as e:  # noqa: BLE001
+                errors += 1
+                typer.echo(f"  {ds}: ERROR {e}", err=True)
+            cur += _dt.timedelta(days=1)
+    finally:
+        client.close()
+    typer.echo(f"✅ backfill {d0}..{d1}: {built} slates built, {graded_dates} dates "
+               f"graded ({decided} bets), {skipped} no-game days, {errors} errors")
 
 
 @app.command()
