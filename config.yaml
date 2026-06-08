@@ -1,0 +1,32 @@
+# hrplaybook configuration. All thresholds are tunable here -- no code changes needed.
+season: 2026
+max_plays: 5
+gate: practical          # "practical" (barrel% vs pitch-mix floor) or "elite" (EV/Barrel/HardHit)
+
+thresholds:
+  elite:    { ev: 102, barrel: 25, hard_hit: 50 }
+  practical: { barrel_vs_pm: 10 }
+  perfect_profile: { ev_min: 102, ev_max: 110, la_min: 25, la_max: 33, dist_min: 380, dist_max: 430 }
+  pitcher:  { hr9_high: 1.5, hr9_mid: 1.2, hrfb_high: 15, hrfb_mid: 12, k_low: 20, whiff_low: 23 }
+  env:      { temp_elite: 85, temp_boost: 75, temp_cold: 60, wind_out_strong: 10 }
+
+recent_window_days: 30
+hot_contact: { ev: 95, count: 3, games: 5 }
+missed_hr:   { ev: 100, dist: 380 }
+recency_fade_weight: -1            # applied to PLAY_SCORE if batter homered in last 1-2 games
+
+# Park buckets (matched against StatsAPI home-team abbreviation; see parks.csv for full metadata)
+elite_parks: [CIN, BAL, TOR, COL]
+solid_parks: [LAD, NYM, CHC, PHI, BOS, MIL]
+pitcher_parks: [SEA, SF, MIA, DET, CLE]
+
+# Networking / caching
+rate_limit_per_sec: 1
+cache_ttl_minutes: { schedule: 60, lineups: 5, savant: 720, weather: 60, people: 1440 }
+user_agent: "hrplaybook/1.0 (personal use)"
+
+# Optional odds provider (value filter). Leave provider blank to skip -> value=unknown.
+odds:
+  provider: ""           # "the-odds-api" or "" to disable
+  api_key_env: "ODDS_API_KEY"
+  region: "us"

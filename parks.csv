@@ -1,0 +1,31 @@
+team,venue_id,park_name,lat,lon,orientation_deg,roof,hr_factor
+AZ,15,Chase Field,33.4455,-112.0667,0,retractable,1.03
+ATL,4705,Truist Park,33.8907,-84.4677,25,open,1.02
+BAL,2,Oriole Park at Camden Yards,39.2839,-76.6217,30,open,1.08
+BOS,3,Fenway Park,42.3467,-71.0972,45,open,1.03
+CHC,17,Wrigley Field,41.9484,-87.6553,30,open,1.04
+CWS,4,Rate Field,41.8300,-87.6339,130,open,1.02
+CIN,2602,Great American Ball Park,39.0975,-84.5069,40,open,1.12
+CLE,5,Progressive Field,41.4962,-81.6852,0,open,0.95
+COL,19,Coors Field,39.7559,-104.9942,0,open,1.15
+DET,2394,Comerica Park,42.3390,-83.0485,150,open,0.92
+HOU,2392,Daikin Park,29.7572,-95.3556,345,retractable,1.04
+KC,7,Kauffman Stadium,39.0517,-94.4803,60,open,0.97
+LAA,1,Angel Stadium,33.8003,-117.8827,45,open,0.98
+LAD,22,Dodger Stadium,34.0739,-118.2400,25,open,1.03
+MIA,4169,loanDepot park,25.7781,-80.2197,40,retractable,0.94
+MIL,32,American Family Field,43.0280,-87.9712,30,retractable,1.04
+MIN,3312,Target Field,44.9817,-93.2776,90,open,1.00
+NYM,3289,Citi Field,40.7571,-73.8458,25,open,1.02
+NYY,3313,Yankee Stadium,40.8296,-73.9262,75,open,1.08
+ATH,,Sutter Health Park,38.5802,-121.5135,0,open,1.00
+PHI,2681,Citizens Bank Park,39.9061,-75.1665,0,open,1.06
+PIT,31,PNC Park,40.4469,-80.0057,120,open,0.93
+SD,2680,Petco Park,32.7073,-117.1570,0,open,0.92
+SF,2395,Oracle Park,37.7786,-122.3893,90,open,0.88
+SEA,680,T-Mobile Park,47.5914,-122.3325,75,retractable,0.92
+STL,2889,Busch Stadium,38.6226,-90.1928,60,open,0.97
+TB,2523,George M. Steinbrenner Field,27.9799,-82.5076,30,open,1.05
+TEX,5325,Globe Life Field,32.7473,-97.0847,0,retractable,1.00
+TOR,14,Rogers Centre,43.6414,-79.3894,0,retractable,1.04
+WSH,3309,Nationals Park,38.8730,-77.0074,30,open,1.00
