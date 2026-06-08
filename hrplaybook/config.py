@@ -95,6 +95,11 @@ class Config(BaseModel):
     solid_parks: List[str] = Field(default_factory=lambda: ["LAD", "NYM", "CHC"])
     pitcher_parks: List[str] = Field(default_factory=lambda: ["SEA", "SF", "MIA"])
 
+    # Savant leaderboard min-PA thresholds. "q" = qualified (~145 batters / 52
+    # pitchers only); numeric strings widen coverage to bench/platoon/call-ups.
+    savant_batter_min: str = "25"
+    savant_pitcher_min: str = "10"
+
     rate_limit_per_sec: float = 1
     cache_ttl_minutes: Dict[str, int] = Field(
         default_factory=lambda: {

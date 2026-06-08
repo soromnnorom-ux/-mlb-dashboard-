@@ -45,10 +45,10 @@ def _read_csv(text: Optional[str]) -> List[dict]:
     return list(reader)
 
 
-def fetch_batter_leaderboard(client: Client, season: int) -> Optional[str]:
+def fetch_batter_leaderboard(client: Client, season: int, min_q: str = "q") -> Optional[str]:
     url = f"{BASE}/leaderboard/custom"
     params = {
-        "year": season, "type": "batter", "filter": "", "min": "q",
+        "year": season, "type": "batter", "filter": "", "min": min_q,
         "selections": BATTER_SELECTIONS, "csv": "true",
     }
     return client.get_text("savant", url, params)
@@ -83,10 +83,10 @@ def parse_batter_leaderboard(text: Optional[str], season: int) -> Dict[int, Batt
     return out
 
 
-def fetch_pitcher_leaderboard(client: Client, season: int) -> Optional[str]:
+def fetch_pitcher_leaderboard(client: Client, season: int, min_q: str = "q") -> Optional[str]:
     url = f"{BASE}/leaderboard/custom"
     params = {
-        "year": season, "type": "pitcher", "filter": "", "min": "q",
+        "year": season, "type": "pitcher", "filter": "", "min": min_q,
         "selections": PITCHER_SELECTIONS, "csv": "true",
     }
     return client.get_text("savant", url, params)

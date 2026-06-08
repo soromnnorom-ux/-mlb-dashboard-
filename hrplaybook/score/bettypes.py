@@ -28,11 +28,11 @@ def map_bets(m: Matchup, cfg: Config) -> Matchup:
     env_rank = env_tier_rank(m.env_tier)
     bets: dict[str, str] = {}
 
-    # TB -- primary edge. Any batter clearing the contact gate in good+ env.
-    if env_rank >= 2 and _contact_ok(b):
-        bets["TB"] = "2+ TB" if _strong_contact(b) else "1.5 TB"
-    elif _contact_ok(b) and env_rank >= 1:
-        bets["TB"] = "1.5 TB"
+    # TB -- primary edge. 2+ in good+ env with strong contact; otherwise 1.5.
+    # Dead-air bats with real contact still earn a (reduced) TB play per the
+    # playbook -- HRs are suppressed there, TB is not.
+    if _contact_ok(b):
+        bets["TB"] = "2+ TB" if (env_rank >= 2 and _strong_contact(b)) else "1.5 TB"
 
     # HR -- Tier 1 only (cap enforced upstream in finalize_tiers).
     if m.tier == 1:

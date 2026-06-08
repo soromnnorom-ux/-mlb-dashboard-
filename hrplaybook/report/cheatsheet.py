@@ -14,12 +14,13 @@ from .render import matchup_view, slate_banner
 TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
 
 
-def _env() -> Environment:
+def _env(trim: bool) -> Environment:
+    # Markdown needs newlines preserved (trim=False); HTML benefits from trimming.
     return Environment(
         loader=FileSystemLoader(str(TEMPLATES_DIR)),
         autoescape=select_autoescape(["html"]),
-        trim_blocks=True,
-        lstrip_blocks=True,
+        trim_blocks=trim,
+        lstrip_blocks=trim,
     )
 
 
@@ -54,16 +55,15 @@ def render(date: str, games: List[Game], matchups: List[Matchup], cfg: Config,
     warnings = warnings or []
     outdir = Path(outdir)
     outdir.mkdir(parents=True, exist_ok=True)
-    env = _env()
     written = []
 
-    md = env.get_template("cheatsheet.md.j2").render(
+    md = _env(trim=False).get_template("cheatsheet.md.j2").render(
         **build_context(date, games, matchups, cfg, "md", warnings))
     md_path = outdir / "cheatsheet.md"
     md_path.write_text(md)
     written.append(str(md_path))
 
-    html = env.get_template("cheatsheet.html.j2").render(
+    html = _env(trim=True).get_template("cheatsheet.html.j2").render(
         **build_context(date, games, matchups, cfg, "html", warnings))
     html_path = outdir / "cheatsheet.html"
     html_path.write_text(html)

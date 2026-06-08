@@ -115,9 +115,9 @@ def build_slate(
 
     # 5. season pools (one fetch each, heavily cached)
     batter_pool = savant.parse_batter_leaderboard(
-        savant.fetch_batter_leaderboard(client, cfg.season), cfg.season)
+        savant.fetch_batter_leaderboard(client, cfg.season, cfg.savant_batter_min), cfg.season)
     pitcher_pool = savant.parse_pitcher_leaderboard(
-        savant.fetch_pitcher_leaderboard(client, cfg.season), cfg.season)
+        savant.fetch_pitcher_leaderboard(client, cfg.season, cfg.savant_pitcher_min), cfg.season)
     arsenals = savant.parse_arsenals(savant.fetch_arsenals(client, cfg.season))
     if not batter_pool:
         warnings.append("Batter leaderboard empty (network?); metrics will be sparse.")

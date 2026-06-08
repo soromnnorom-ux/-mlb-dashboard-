@@ -20,6 +20,10 @@ elite_parks: [CIN, BAL, TOR, COL]
 solid_parks: [LAD, NYM, CHC, PHI, BOS, MIL]
 pitcher_parks: [SEA, SF, MIA, DET, CLE]
 
+# Savant leaderboard min-PA thresholds ("q"=qualified only; numbers widen coverage)
+savant_batter_min: "25"
+savant_pitcher_min: "10"
+
 # Networking / caching
 rate_limit_per_sec: 1
 cache_ttl_minutes: { schedule: 60, lineups: 5, savant: 720, weather: 60, people: 1440 }
