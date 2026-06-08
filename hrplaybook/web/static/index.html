@@ -85,6 +85,31 @@
   .heat{text-align:center;font-weight:700;font-variant-numeric:tabular-nums;border-radius:4px;color:#0c0f14}
   .heat.dim{color:var(--muted);background:transparent!important;font-weight:400}
   .rk{color:var(--muted);font-variant-numeric:tabular-nums;text-align:right;width:26px}
+  /* freshness chips */
+  .fresh{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+  .fchip{display:flex;align-items:center;gap:6px;background:var(--panel);border:1px solid var(--line);
+         border-radius:7px;padding:5px 10px;font-size:12px}
+  .fchip .fdot{width:8px;height:8px;border-radius:50%}
+  .fdot.green{background:#2ea043}.fdot.yellow{background:#d29922}.fdot.red{background:#da3633}.fdot.gray{background:#6e7681}
+  .fchip .fl{color:var(--muted)}.fchip .fv{font-weight:600}
+  /* tooltips */
+  #tip{position:fixed;z-index:999;max-width:300px;background:#0b0e13;border:1px solid var(--accent);
+       border-radius:7px;padding:9px 11px;font-size:12px;color:var(--text);pointer-events:none;
+       box-shadow:0 6px 20px rgba(0,0,0,.5);display:none;line-height:1.4}
+  #tip .tt{font-weight:700;color:var(--accent);margin-bottom:3px}
+  #tip .tw{color:#adbac7}#tip .tg{color:#7ee787;font-size:11px}#tip .tb{color:#f0a064;font-size:11px}
+  [data-tip]{cursor:help;border-bottom:1px dotted var(--muted)}
+  th[data-tip]{border-bottom:1px dotted var(--line)}
+  /* validate + glossary */
+  .vpanel{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 14px;margin-bottom:14px}
+  .vrow{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--line);font-size:13px}
+  .vrow:last-child{border-bottom:none}
+  .vbadge{font-weight:700;font-size:11px;padding:2px 8px;border-radius:5px;min-width:64px;text-align:center}
+  .vPASS{background:#143;color:#7ee787}.vWARNING{background:#3a2d10;color:#e3b341}.vFAIL{background:#3a1d1d;color:#f85149}
+  .gloss h3{margin:20px 0 6px}
+  .gloss table{width:100%}.gloss td{vertical-align:top}
+  .gloss .ab{font-weight:700;color:var(--accent);white-space:nowrap}
+  .gloss .gd{color:#7ee787;font-size:12px}.gloss .bd{color:#f0a064;font-size:12px}
 </style>
 </head>
 <body>
@@ -95,6 +120,8 @@
   <button id="btnRun" class="primary">Run</button>
   <button id="btnRefresh">Refresh</button>
   <button id="btnGrade">Grade</button>
+  <button id="btnValidate" title="Check pitchers, lineups, weather, statcast, odds, game status">Validate</button>
+  <button id="btnForce" title="Bypass cache and re-pull everything">Force Refresh</button>
   <label style="font-size:12px;color:var(--muted)"><input type="checkbox" id="noStat"/> no-statcast</label>
   <div class="spacer"></div>
   <div id="status">—</div>
@@ -105,8 +132,10 @@
   <button data-tab="cards">Bet Cards</button>
   <button data-tab="matchups">Matchups</button>
   <button data-tab="ledger">Ledger</button>
+  <button data-tab="glossary">Glossary</button>
 </nav>
 <main id="view"><div class="empty">Loading…</div></main>
+<div id="tip"></div>
 
 <script>
 const $ = s => document.querySelector(s);
@@ -149,6 +178,7 @@ async function loadSlate(){
 function render(){
   const v=$("#view"), s=STATE.slate;
   if(STATE.tab==="ledger"){ return renderLedger(); }
+  if(STATE.tab==="glossary"){ return renderGlossary(); }
   if(!s || !s.exists){
     v.innerHTML=`<div class="empty">No data for <b>${STATE.date}</b>.<br/>Click <b>Run</b> to build this slate.</div>`;
     return;
@@ -170,6 +200,7 @@ function renderSlate(){
     <div class="stat"><div class="n">${sm.matchups}</div><div class="l">matchups</div></div>
   </div>`;
   const dead = sm.dead_air.length? `<div class="note">Dead-air (HRs suppressed, TB live): <b>${sm.dead_air.join(", ")}</b></div>`:"";
+  const fresh = freshnessHtml(STATE.slate.meta);
   const rows = s.games.map(g=>`<tr>
     <td><b>${g.matchup}</b></td><td>${g.venue||""}</td>
     <td>${envBadge(g.env_tier)} <span class="mono">${g.env_score}</span></td>
@@ -177,7 +208,7 @@ function renderSlate(){
     <td>${g.wind_mph??"—"} mph ${g.wind_out||""}</td>
     <td>${g.away_sp||"TBD"} <span class="sp">→ ${g.home_sp||"TBD"}</span></td>
   </tr>`).join("");
-  $("#view").innerHTML = banner+dead+`<div class="panel"><table>
+  $("#view").innerHTML = fresh+banner+dead+`<div class="panel"><table>
     <thead><tr><th>Game</th><th>Venue</th><th>Env</th><th>Temp</th><th>Wind</th><th>Pitchers (away→home)</th></tr></thead>
     <tbody>${rows}</tbody></table></div>`;
 }
@@ -351,6 +382,92 @@ async function renderLedger(){
     </tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
+// --- glossary + tooltips (Phase 16) ---
+let GLOSSARY={groups:[]}, GBYABBR={};
+const ALIAS={"B% VS PM":"B%PM","VS HAND":"B%H","SP△":"SPΔ","SPOT":"SPOT","PLT":"PLT",
+  "ENV":"ENV","HR%":"HR%","TB%":"TB%","VAL":"VAL","TAGS":"TAGS","B%PM":"B%PM","B%H":"B%H"};
+async function loadGlossary(){
+  try{ GLOSSARY=await api("/api/glossary"); }catch(e){ return; }
+  (GLOSSARY.groups||[]).forEach(g=>g.terms.forEach(t=>{GBYABBR[t.abbr.toUpperCase()]=t;}));
+}
+function tipHtml(t){
+  return `<div class="tt">${t.abbr} — ${t.name}</div><div class="tw">${t.meaning}</div>`
+    +(t.why?`<div class="tw" style="margin-top:4px">${t.why}</div>`:"")
+    +(t.good?`<div class="tg">✓ good: ${t.good}</div>`:"")
+    +(t.bad?`<div class="tb">✗ bad: ${t.bad}</div>`:"");
+}
+function initTips(){
+  const tip=$("#tip");
+  document.addEventListener("mouseover",e=>{
+    const el=e.target.closest("[data-tip]"); if(!el)return;
+    tip.innerHTML=el.getAttribute("data-tip"); tip.style.display="block";
+  });
+  document.addEventListener("mousemove",e=>{
+    if(tip.style.display!=="block")return;
+    let x=e.clientX+14,y=e.clientY+14;
+    if(x+310>innerWidth)x=e.clientX-314; if(y+120>innerHeight)y=e.clientY-120;
+    tip.style.left=x+"px"; tip.style.top=y+"px";
+  });
+  document.addEventListener("mouseout",e=>{ if(e.target.closest("[data-tip]")) tip.style.display="none"; });
+}
+function attachHeaderTips(){
+  document.querySelectorAll("#view th").forEach(th=>{
+    const raw=th.textContent.replace(/[▼▲]/g,"").trim().toUpperCase();
+    const abbr=ALIAS[raw]||raw;
+    const t=GBYABBR[abbr]; if(t){ th.setAttribute("data-tip",tipHtml(t)); }
+  });
+}
+function freshnessHtml(meta){
+  if(!meta||!meta.sections)return "";
+  const order=["schedule","lineups","weather","pitchers","statcast","odds"];
+  const labels={schedule:"Schedule",lineups:"Lineups",weather:"Weather",
+    pitchers:"Pitchers",statcast:"Statcast",odds:"Odds"};
+  const age=meta.built_at?Math.round((Date.now()-new Date(meta.built_at))/60000):null;
+  const stale=meta.stale_minutes||{};
+  const chips=order.map(k=>{
+    const s=meta.sections[k]; if(!s)return "";
+    let color=s.state||"gray";
+    // escalate to red if older than stale threshold
+    if(age!=null && stale[k]!=null && age>stale[k] && color==="green") color="yellow";
+    let val="";
+    if(k==="lineups")val=`${s.confirmed||0}c/${s.projected||0}p`;
+    else if(k==="weather")val=`${s.have_temp||0} games`;
+    else if(k==="pitchers")val=`${s.found||0} set`;
+    else if(k==="statcast")val=`${s.pulled||0} pulled`;
+    else if(k==="odds")val=s.present?"present":"none";
+    else if(k==="schedule")val=`${s.count||0} games`;
+    return `<div class="fchip"><span class="fdot ${color}"></span><span class="fl">${labels[k]}</span> <span class="fv">${val}</span></div>`;
+  }).join("");
+  const ageChip=`<div class="fchip"><span class="fl">updated</span> <span class="fv">${age==null?"—":age+"m ago"}</span></div>`;
+  return `<div class="fresh">${chips}${ageChip}</div>`;
+}
+function renderGlossary(){
+  const g=GLOSSARY.groups||[];
+  let html=`<div class="gloss"><div class="sp" style="color:var(--muted);margin-bottom:6px">Hover any column header on the other tabs for a quick definition.</div>`;
+  for(const grp of g){
+    html+=`<h3>${grp.title}</h3><div class="panel"><table><thead><tr>
+      <th>Term</th><th>Means</th><th>Why it matters</th><th>Good</th><th>Bad</th></tr></thead><tbody>`;
+    html+=grp.terms.map(t=>`<tr>
+      <td class="ab">${t.abbr}<div class="sp" style="color:var(--muted);font-weight:400">${t.name}</div></td>
+      <td>${t.meaning}</td><td style="color:#adbac7">${t.why||""}</td>
+      <td class="gd">${t.good||""}</td><td class="bd">${t.bad||""}</td></tr>`).join("");
+    html+=`</tbody></table></div>`;
+  }
+  $("#view").innerHTML=html+`</div>`;
+}
+async function validate(){
+  setStatus("run","validating…");
+  let r; try{ r=await api("/api/validate/"+STATE.date); }catch(e){ setStatus("err","validate failed"); return; }
+  const rows=r.checks.map(c=>`<div class="vrow">
+    <span class="vbadge v${c.status}">${c.status}</span>
+    <b style="min-width:130px">${c.name}</b><span class="sp" style="color:var(--muted)">${c.detail}</span></div>`).join("");
+  const panel=`<div class="vpanel"><div class="vrow"><span class="vbadge v${r.overall}">${r.overall}</span>
+    <b>Slate validation — ${STATE.date}</b></div>${rows}</div>`;
+  STATE.tab="slate"; setTab();
+  $("#view").insertAdjacentHTML("afterbegin",panel);
+  setStatus("ok","validated: "+r.overall);
+}
+
 // --- jobs ---
 let POLL=null;
 function setStatus(cls,txt){ $("#status").innerHTML=`<span class="dot ${cls}"></span>${txt}`; }
@@ -378,14 +495,18 @@ async function trigger(kind){
 function setTab(){
   document.querySelectorAll("#tabs button").forEach(b=>b.classList.toggle("active",b.dataset.tab===STATE.tab));
   render();
+  attachHeaderTips();
 }
 document.querySelectorAll("#tabs button").forEach(b=>b.onclick=()=>{STATE.tab=b.dataset.tab; setTab();});
 $("#dateSel").onchange=e=>{STATE.date=e.target.value; loadSlate();};
 $("#btnRun").onclick=()=>trigger("run");
 $("#btnRefresh").onclick=()=>trigger("refresh");
 $("#btnGrade").onclick=()=>trigger("grade");
+$("#btnForce").onclick=()=>trigger("force-refresh");
+$("#btnValidate").onclick=()=>validate();
 
-(async()=>{ await loadDates(); await loadSlate(); setStatus("ok","ready"); })();
+(async()=>{ initTips(); await loadGlossary(); await loadDates(); await loadSlate();
+  attachHeaderTips(); setStatus("ok","ready"); })();
 </script>
 </body>
 </html>

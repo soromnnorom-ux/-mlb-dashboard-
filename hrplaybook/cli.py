@@ -30,13 +30,14 @@ CACHE_DIR = Path.home() / ".cache" / "hrplaybook"
 # --------------------------------------------------------------------------- #
 # Wiring
 # --------------------------------------------------------------------------- #
-def _make_client(cfg: Config, offline: bool) -> Client:
+def _make_client(cfg: Config, offline: bool, force_refresh: bool = False) -> Client:
     cache = DiskCache(CACHE_DIR, cfg.cache_ttl_minutes)
     return Client(
         cache,
         user_agent=cfg.user_agent,
         rate_limit_per_sec=cfg.rate_limit_per_sec,
         offline=offline,
+        force_refresh=force_refresh,
     )
 
 
@@ -238,11 +239,16 @@ def build_slate(
 
 
 def _write_outputs(date: str, games, pitchers, matchups, cfg, warnings) -> Path:
+    import json as _json
+
+    from .freshness import build_meta
     outdir = Path("out") / date
     csvout.write_all(outdir, games, pitchers, matchups)
     cheatsheet.render(date, games, matchups, cfg, outdir, warnings)
     cards.write_cards(outdir, matchups, cfg, date)
     write_picks(outdir, matchups, date)
+    (outdir / "meta.json").write_text(
+        _json.dumps(build_meta(date, games, matchups, warnings, cfg), indent=2))
     return outdir
 
 

@@ -51,6 +51,16 @@ def _df_records(path: Path) -> list:
     return json.loads(pd.read_csv(path).to_json(orient="records"))
 
 
+def _meta(date: str) -> dict:
+    p = _out_dir() / date / "meta.json"
+    if p.exists():
+        try:
+            return json.loads(p.read_text())
+        except (json.JSONDecodeError, OSError):
+            return {}
+    return {}
+
+
 def _slate(date: str) -> dict:
     d = _out_dir() / date
     games = _df_records(d / "games.csv")
@@ -68,6 +78,7 @@ def _slate(date: str) -> dict:
             "games": len(games), "elite": elite, "good": good,
             "dead_air": dead, "tier1": tier1, "matchups": len(matchups),
         },
+        "meta": _meta(date),
     }
 
 
@@ -106,7 +117,8 @@ def _run_job(job_id: str, kind: str, date: str, opts: dict):
             _grade(date, cfg)
             _set(job_id, state="done", result={"graded": date})
             return
-        client = _make_client(cfg, offline=opts.get("offline", False))
+        client = _make_client(cfg, offline=opts.get("offline", False),
+                              force_refresh=opts.get("force", False))
         try:
             games, pitchers, matchups, warnings = build_slate(
                 date, cfg, client,
@@ -189,6 +201,33 @@ def api_run(payload: dict):
 @app.post("/api/refresh")
 def api_refresh(payload: dict):
     return {"job_id": _spawn("refresh", payload)}
+
+
+@app.post("/api/force-refresh")
+def api_force_refresh(payload: dict):
+    payload = {**(payload or {}), "force": True}
+    return {"job_id": _spawn("run", payload)}
+
+
+@app.get("/api/validate/{date}")
+def api_validate(date: str):
+    from ..freshness import validate_slate
+    try:
+        date = resolve_date(date)
+    except ValueError:
+        raise HTTPException(400, "bad date")
+    s = _slate(date)
+    if not s["exists"]:
+        return {"overall": "FAIL",
+                "checks": [{"name": "Slate", "status": "FAIL",
+                            "detail": "not built yet — click Run"}]}
+    return validate_slate(s.get("meta", {}), s["games"], s["matchups"])
+
+
+@app.get("/api/glossary")
+def api_glossary():
+    p = STATIC / "glossary.json"
+    return json.loads(p.read_text()) if p.exists() else {}
 
 
 @app.post("/api/grade")

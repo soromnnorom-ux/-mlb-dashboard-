@@ -30,11 +30,13 @@ class Client:
         rate_limit_per_sec: float = 1.0,
         timeout: float = 30.0,
         offline: bool = False,
+        force_refresh: bool = False,
     ):
         self.cache = cache
         self.user_agent = user_agent
         self.min_interval = 1.0 / rate_limit_per_sec if rate_limit_per_sec > 0 else 0.0
         self.offline = offline
+        self.force_refresh = force_refresh
         self._last_request = 0.0
         self._client = httpx.Client(
             headers={"User-Agent": user_agent, "Accept": "*/*"},
@@ -85,9 +87,10 @@ class Client:
         allow_stale_on_error: bool = True,
     ) -> Optional[str]:
         key = self._key(url, params)
-        cached = self.cache.get(namespace, key)
-        if cached is not None:
-            return cached
+        if not self.force_refresh:
+            cached = self.cache.get(namespace, key)
+            if cached is not None:
+                return cached
         if self.offline:
             return self.cache.get(namespace, key, allow_stale=True)
         try:
