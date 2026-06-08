@@ -66,6 +66,25 @@
   .mono{font-variant-numeric:tabular-nums}
   .ev-pos{color:#7ee787}.ev-neg{color:#f85149}
   h3{margin:18px 0 8px;font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+  /* propfinder-style cheatsheet */
+  .chips{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
+  .chip{background:var(--panel2);border:1px solid var(--line);border-radius:20px;padding:5px 14px;
+        font-size:12px;font-weight:600;cursor:pointer;color:var(--muted)}
+  .chip.active{background:var(--accent);color:#1a1a1a;border-color:var(--accent)}
+  table.cs td,table.cs th{padding:6px 10px}
+  .cs .pl{display:flex;align-items:center;gap:9px;min-width:190px}
+  .cs .pl img{width:34px;height:34px;border-radius:50%;background:var(--panel2);object-fit:cover;
+       border:1px solid var(--line)}
+  .cs .pl .nm{font-weight:700;font-size:13px;line-height:1.1}
+  .cs .pl .tm{font-size:11px;color:var(--muted)}
+  .cs .mu{font-size:12px;color:#adbac7}.cs .mu .h{color:var(--muted)}
+  .prop{display:inline-block;background:#222b36;border:1px solid var(--line);border-radius:5px;
+        padding:2px 8px;font-size:12px;font-weight:600;white-space:nowrap}
+  .prop.HR{color:#f0a000;border-color:#5a4400}.prop.TB{color:#79c0ff;border-color:#1f4a7a}
+  .prop.HRR{color:#d2a8ff;border-color:#43326b}.prop.Hits{color:#7ee787;border-color:#1d4d2b}
+  .heat{text-align:center;font-weight:700;font-variant-numeric:tabular-nums;border-radius:4px;color:#0c0f14}
+  .heat.dim{color:var(--muted);background:transparent!important;font-weight:400}
+  .rk{color:var(--muted);font-variant-numeric:tabular-nums;text-align:right;width:26px}
 </style>
 </head>
 <body>
@@ -175,17 +194,72 @@ function playerLine(m){
   </div>`;
 }
 
+// --- propfinder-style cheatsheet ---
+const MARKETS=["All","HR","TB","HRR","Hits"];
+function headshot(id){
+  return `https://img.mlbstatic.com/mlb-photos/image/upload/d_people:generic:headshot:67:current/w_72,q_auto:best/v1/people/${id}/headshot/67/current`;
+}
+function heat(v,lo,hi){
+  if(v==null||v===""||isNaN(v))return null;
+  const t=Math.max(0,Math.min(1,(v-lo)/(hi-lo)));
+  return `hsl(${Math.round(t*125)},62%,${38+ (1-Math.abs(t-.5))*6|0}%)`;
+}
+function heatCell(v,lo,hi,fmt){
+  if(v==null||v===""||isNaN(v))return `<td class="heat dim">—</td>`;
+  const bg=heat(+v,lo,hi); return `<td class="heat" style="background:${bg}">${fmt(+v)}</td>`;
+}
+const PROJ_BOUNDS={HR:[.05,.30],TB:[.35,.72]};
+function projOf(m,bet){return bet==="HR"?m.model_hr_prob:bet==="TB"?m.model_tb_prob:null;}
+
 function renderSheet(){
-  const ms=[...STATE.slate.matchups].sort((a,b)=>(b.play_score||0)-(a.play_score||0));
-  const tiers={1:[],2:[],3:[]};
-  ms.forEach(m=>{ if([1,2,3].includes(m.tier)) tiers[m.tier].push(m); });
-  const names={1:"🟢 TIER 1 — CORE",2:"🟡 TIER 2 — ENV-BOOSTED",3:"⚪ TIER 3 — LOTTERY"};
-  let html="";
-  for(const t of [1,2,3]){
-    html+=`<div class="tierhd t${t}">${names[t]} (${tiers[t].length})</div>`;
-    html+= tiers[t].length? tiers[t].map(playerLine).join("") : `<div class="sp" style="color:var(--muted)">none</div>`;
+  const mk=STATE.sheetMarket||"All";
+  let rows=[];
+  for(const m of STATE.slate.matchups){
+    for(const bstr of (m.bets||"").split("|").filter(Boolean)){
+      const [bet,line]=bstr.split(":");
+      if(mk!=="All" && bet!==mk) continue;
+      rows.push({m,bet,line,proj:projOf(m,bet)});
+    }
   }
-  $("#view").innerHTML=html;
+  const {key,dir}=STATE.sheetSort||(STATE.sheetSort={key:"proj",dir:-1});
+  const val=(r)=>({proj:r.proj, pm:r.m.barrel_vs_pm, hand:r.m.barrel_vs_hand,
+                   l30:r.m.l30_avg, play:r.m.play_score}[key]);
+  rows.sort((a,b)=>{const x=val(a),y=val(b); if(x==null)return 1; if(y==null)return -1;
+                    return (x>y?1:x<y?-1:0)*dir;});
+  const chips=MARKETS.map(x=>`<div class="chip ${x===mk?'active':''}" data-mk="${x}">${x}</div>`).join("");
+  const arrow=k=>STATE.sheetSort.key===k?(dir<0?" ▼":" ▲"):"";
+  const SH=[["proj","Proj"],["pm","B% vs PM"],["hand","vs Hand"],["l30","L30"],["play","Play"]];
+  const head=`<tr><th class="rk">#</th><th>Player</th><th>Matchup</th><th>Spot</th><th>Prop</th>`
+    + SH.map(([k,l])=>`<th data-sk="${k}" style="text-align:center">${l}${arrow(k)}</th>`).join("")
+    + `<th>Plt</th><th>Env</th><th>T</th></tr>`;
+  const body=rows.map((r,i)=>{
+    const m=r.m, b=m.batter_id;
+    const pb=PROJ_BOUNDS[r.bet]||[.1,.6];
+    const plt={fav:'<span style="color:#7ee787">✓</span>',unfav:'<span style="color:#f85149">✗</span>'}[m.platoon]||'·';
+    return `<tr>
+      <td class="rk">${i+1}</td>
+      <td><div class="pl"><img loading="lazy" src="${headshot(b)}" onerror="this.style.visibility='hidden'"/>
+        <div><div class="nm">${m.batter}</div><div class="tm">${m.team}</div></div></div></td>
+      <td><div class="mu"><span class="h">@</span>${m.opp_team} · ${m.opp_sp||"TBD"}
+        <span class="h">(${m.opp_sp_throws||"?"})</span></div></td>
+      <td class="mono">${m.order??"—"}</td>
+      <td><span class="prop ${r.bet}">${r.line}</span></td>
+      ${heatCell(r.proj,pb[0],pb[1],v=>(v*100).toFixed(0)+"%")}
+      ${heatCell(m.barrel_vs_pm,5,20,v=>v.toFixed(1))}
+      ${heatCell(m.barrel_vs_hand,5,20,v=>v.toFixed(1))}
+      ${heatCell(m.l30_avg,.2,.35,v=>v.toFixed(3).replace(/^0/,''))}
+      <td class="mono" style="text-align:center">${m.play_score??"—"}</td>
+      <td style="text-align:center">${plt}</td>
+      <td>${envBadge(m.env_tier)}</td>
+      <td class="mono" style="text-align:center">${m.tier??""}</td>
+    </tr>`;}).join("");
+  $("#view").innerHTML=`<div class="chips">${chips}</div>
+    <div class="sp" style="color:var(--muted);margin-bottom:8px">${rows.length} props${mk!=="All"?" · "+mk:""}</div>
+    <div class="panel"><table class="cs"><thead>${head}</thead><tbody>${body||'<tr><td colspan="12" class="empty">no props</td></tr>'}</tbody></table></div>`;
+  document.querySelectorAll(".chip").forEach(c=>c.onclick=()=>{STATE.sheetMarket=c.dataset.mk; renderSheet();});
+  document.querySelectorAll("th[data-sk]").forEach(th=>th.onclick=()=>{
+    const k=th.dataset.sk; STATE.sheetSort=STATE.sheetSort.key===k?{key:k,dir:-STATE.sheetSort.dir}:{key:k,dir:-1};
+    renderSheet();});
 }
 
 function renderCards(){
