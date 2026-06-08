@@ -110,6 +110,35 @@
   .gloss table{width:100%}.gloss td{vertical-align:top}
   .gloss .ab{font-weight:700;color:var(--accent);white-space:nowrap}
   .gloss .gd{color:#7ee787;font-size:12px}.gloss .bd{color:#f0a064;font-size:12px}
+  /* Today's Best 5 + My Model (Phase 12/13/18) */
+  .read{background:linear-gradient(180deg,#171f29,#141a22);border:1px solid var(--line);
+        border-left:3px solid var(--accent);border-radius:10px;padding:14px 18px;margin-bottom:16px}
+  .read .rg{font-size:13px;color:#cdd9e5;line-height:1.6}
+  .read b{color:var(--text)}
+  .best-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin-bottom:20px}
+  .bcard{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;position:relative;overflow:hidden}
+  .bcard .lbl{font-size:11px;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
+  .bcard .who{display:flex;align-items:center;gap:10px}
+  .bcard .who img{width:42px;height:42px;border-radius:50%;border:1px solid var(--line);background:var(--panel2)}
+  .bcard .nm{font-weight:700;font-size:16px}.bcard .sub{font-size:12px;color:var(--muted)}
+  .bcard .big{position:absolute;top:10px;right:14px;text-align:right}
+  .bcard .big .sc{font-size:30px;font-weight:800;line-height:1}
+  .bcard .big .gr{font-size:12px;font-weight:700}
+  .stars{color:var(--accent);font-size:13px;letter-spacing:1px}
+  .why{margin-top:10px;font-size:12px}
+  .why li{margin:2px 0;color:#adbac7;list-style:none}
+  .why li::before{content:"✓ ";color:#7ee787}
+  .flags li{margin:2px 0;color:#e0a0a0;list-style:none;font-size:11px}
+  .flags li::before{content:"⚠ ";color:#f0a064}
+  .gpill{display:inline-block;padding:1px 7px;border-radius:5px;font-weight:700;font-size:11px}
+  .g-Ap{background:#0f5132;color:#7ee787}.g-A{background:#14532d;color:#86efac}
+  .g-B{background:#3a2d10;color:#e3b341}.g-C{background:#42260f;color:#f0a064}.g-D{background:#3a1d1d;color:#f08a8a}
+  .mscore{display:inline-flex;flex-direction:column;align-items:center;min-width:46px;padding:3px 0;
+          border-radius:6px;border:1px solid var(--line)}
+  .mscore .mv{font-weight:800;font-size:15px}.mscore .mk{font-size:9px;color:var(--muted);text-transform:uppercase}
+  .bdbars div{display:flex;align-items:center;gap:8px;margin:3px 0;font-size:12px}
+  .bdbars .bn{width:120px;color:var(--muted)}.bdbars .bb{height:8px;background:var(--accent);border-radius:3px}
+  .bdbars .bp{width:30px;text-align:right;font-variant-numeric:tabular-nums}
 </style>
 </head>
 <body>
@@ -127,9 +156,11 @@
   <div id="status">—</div>
 </header>
 <nav id="tabs">
-  <button data-tab="slate" class="active">Slate</button>
+  <button data-tab="home" class="active">Today's Best</button>
+  <button data-tab="model">My Model</button>
   <button data-tab="sheet">Cheat Sheet</button>
   <button data-tab="cards">Bet Cards</button>
+  <button data-tab="slate">Slate</button>
   <button data-tab="matchups">Matchups</button>
   <button data-tab="ledger">Ledger</button>
   <button data-tab="glossary">Glossary</button>
@@ -139,7 +170,7 @@
 
 <script>
 const $ = s => document.querySelector(s);
-let STATE = {date:null, slate:null, tab:"slate", sort:{key:"play_score",dir:-1}, filter:""};
+let STATE = {date:null, slate:null, tab:"home", sort:{key:"play_score",dir:-1}, filter:""};
 
 const fmtPct = v => v==null||v===""?"—":(v*100).toFixed(0)+"%";
 const num = v => v==null||v===""?"—":(+v).toFixed(typeof v==="number"&&v<10?1:0);
@@ -179,6 +210,8 @@ function render(){
   const v=$("#view"), s=STATE.slate;
   if(STATE.tab==="ledger"){ return renderLedger(); }
   if(STATE.tab==="glossary"){ return renderGlossary(); }
+  if(STATE.tab==="home"){ return renderHome(); }
+  if(STATE.tab==="model"){ return renderModel(); }
   if(!s || !s.exists){
     v.innerHTML=`<div class="empty">No data for <b>${STATE.date}</b>.<br/>Click <b>Run</b> to build this slate.</div>`;
     return;
@@ -380,6 +413,106 @@ async function renderLedger(){
   $("#view").innerHTML=cards+`<div class="panel"><table><thead><tr>
     <th>Date</th><th>Player</th><th>Tm</th><th>Bet</th><th>Line</th><th>Got/Need</th><th>Result</th><th>P/L</th>
     </tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+// --- Today's Best + My Model (Phase 12/13/18) ---
+function gradeCls(g){return {"A+":"g-Ap","A":"g-A","B":"g-B","C":"g-C","D":"g-D"}[g]||"g-C";}
+function starsHtml(n){return '<span class="stars">'+"★".repeat(n)+"☆".repeat(5-n)+'</span>';}
+function mdBold(s){return (s||"").replace(/\*\*(.+?)\*\*/g,"<b>$1</b>");}
+function whyList(rs){return rs&&rs.length?`<ul class="why">${rs.map(r=>`<li>${r}</li>`).join("")}</ul>`:"";}
+function flagList(fs){return fs&&fs.length?`<ul class="flags">${fs.map(f=>`<li>${f}</li>`).join("")}</ul>`:"";}
+function bdBars(bd){const mx=Math.max(8,...bd.map(b=>b.pts));
+  return `<div class="bdbars">${bd.map(b=>`<div><span class="bn">${b.label}</span>
+    <span class="bb" style="width:${Math.round(b.pts/mx*120)}px"></span><span class="bp">+${b.pts}</span></div>`).join("")}</div>`;}
+
+function featCard(label, it){
+  if(!it) return `<div class="bcard"><div class="lbl">${label}</div><div class="sub" style="margin-top:14px">No qualifying play</div></div>`;
+  const isP = it.batter===undefined;
+  const name = isP? it.name : it.batter;
+  const img = isP? "" : `<img src="${headshot(it.batter_id)}" onerror="this.style.visibility='hidden'"/>`;
+  const sub = isP? (it.game||"") : `${it.team} vs ${it.opp_sp||it.opp_team}`+(it.line?` · <b>${it.line}</b>`:"");
+  return `<div class="bcard">
+    <div class="lbl">${label}</div>
+    <div class="big"><div class="sc ${gradeCls(it.grade)}" style="background:none;padding:0">${it.score}</div>
+      <div class="gr"><span class="gpill ${gradeCls(it.grade)}">${it.grade}</span></div></div>
+    <div class="who">${img}<div><div class="nm">${name}</div><div class="sub">${sub}</div>
+      <div>${starsHtml(it.stars)}</div></div></div>
+    ${whyList(it.reasons)}${flagList(it.red_flags)}</div>`;
+}
+
+async function renderHome(){
+  if($("#dateSel").value)STATE.date=$("#dateSel").value;
+  $("#view").innerHTML=`<div class="empty">Loading…</div>`;
+  let h; try{ h=await api("/api/home/"+STATE.date); }catch(e){ h={exists:false}; }
+  if(!h.exists){ $("#view").innerHTML=`<div class="empty">No data for <b>${STATE.date}</b>.<br/>Click <b>Run</b> to build this slate.</div>`; return; }
+  const r=h.read, s=r.summary;
+  const summaryStats=`<div class="banner">
+    <div class="stat"><div class="n">${r.grade}</div><div class="l">slate grade</div></div>
+    <div class="stat"><div class="n">${s.elite_env+s.good_env}</div><div class="l">good+ env</div></div>
+    <div class="stat"><div class="n">${s.attackable_pitchers}</div><div class="l">attackable SP</div></div>
+    <div class="stat"><div class="n">${s.dead_air}</div><div class="l">dead-air</div></div>
+    <div class="stat"><div class="n">${(r.lean||'').toUpperCase()}</div><div class="l">lean today</div></div>
+  </div>`;
+  const read=`<div class="read"><div class="lbl" style="font-size:11px;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Slate Read</div>
+    <div class="rg">${mdBold(r.text)}</div></div>`;
+  const labels={HR:"Best HR Play",TB:"Best 2+ TB Play",HRR:"Best HRR Play",Hits:"Best Hit Play"};
+  const cards=["HR","TB","HRR","Hits"].map(mk=>featCard(labels[mk],h.best5[mk])).join("")
+    + featCard("Pitcher to Attack", h.best5.pitcher);
+  let tops=`<h3>Top plays by market</h3>`;
+  for(const mk of ["HR","TB","HRR","Hits"]){
+    const rows=h.top[mk]||[];
+    tops+=`<h3 style="color:var(--accent)">${mk} — Top ${rows.length}</h3>`;
+    if(!rows.length){ tops+=`<div class="sp" style="color:var(--muted)">none</div>`; continue; }
+    tops+=`<div class="panel"><table><thead><tr><th>#</th><th>Player</th><th>Tm</th><th>vs SP</th>
+      <th>Line</th><th>Score</th><th>Why</th></tr></thead><tbody>`+
+      rows.map((it,i)=>`<tr><td class="rk">${i+1}</td>
+        <td><b>${it.batter}</b></td><td>${it.team}</td><td>${it.opp_sp||it.opp_team}</td>
+        <td>${it.line||""}</td>
+        <td><span class="gpill ${gradeCls(it.grade)}">${it.score} ${it.grade}</span></td>
+        <td class="sp" style="color:#adbac7">${(it.reasons||[]).slice(0,2).join(" · ")}</td></tr>`).join("")
+      +`</tbody></table></div>`;
+  }
+  const pa=h.pitchers||[];
+  tops+=`<h3 style="color:var(--accent)">Pitchers to Attack — Top ${pa.length}</h3>`;
+  tops+=pa.length?`<div class="panel"><table><thead><tr><th>#</th><th>Pitcher</th><th>Game</th>
+    <th>Score</th><th>Why</th></tr></thead><tbody>`+
+    pa.map((p,i)=>`<tr><td class="rk">${i+1}</td><td><b>${p.name}</b></td><td>${p.game}</td>
+      <td><span class="gpill ${gradeCls(p.grade)}">${p.score} ${p.grade}</span></td>
+      <td class="sp" style="color:#adbac7">${(p.reasons||[]).join(" · ")}</td></tr>`).join("")
+    +`</tbody></table></div>`:`<div class="sp" style="color:var(--muted)">none</div>`;
+  $("#view").innerHTML=read+summaryStats+`<div class="best-grid">${cards}</div>`+tops;
+}
+
+async function renderModel(){
+  if($("#dateSel").value)STATE.date=$("#dateSel").value;
+  $("#view").innerHTML=`<div class="empty">Loading…</div>`;
+  let d; try{ d=await api("/api/model/"+STATE.date); }catch(e){ d={exists:false}; }
+  if(!d.exists){ $("#view").innerHTML=`<div class="empty">No data for <b>${STATE.date}</b>. Click <b>Run</b>.</div>`; return; }
+  const mk=STATE.modelMarket||"HR";
+  const rows=[...d.players].sort((a,b)=>b.scores[mk].score-a.scores[mk].score);
+  const chips=["HR","TB","HRR","Hits"].map(x=>`<div class="chip ${x===mk?'active':''}" data-mm="${x}">sort: ${x}</div>`).join("");
+  const body=rows.map((p,i)=>{
+    const cells=["HR","TB","HRR","Hits"].map(x=>{const sc=p.scores[x];
+      return `<td><div class="mscore"><span class="mv ${gradeCls(sc.grade)}" style="background:none;padding:0 4px;border-radius:4px">${sc.score}</span><span class="mk">${x}</span></div></td>`;}).join("");
+    return `<tr class="mrow" data-i="${i}" style="cursor:pointer">
+      <td class="rk">${i+1}</td>
+      <td><div class="pl"><img loading="lazy" src="${headshot(p.batter_id)}" onerror="this.style.visibility='hidden'"/>
+        <div><div class="nm">${p.batter}</div><div class="tm">${p.team} #${p.order??"?"} ${p.platoon==='fav'?'✓':p.platoon==='unfav'?'✗':''}</div></div></div></td>
+      <td class="mu"><span class="h">@</span>${p.opp_team} · ${p.opp_sp||"TBD"}</td>
+      ${cells}<td>${envBadge(p.env_tier)}</td></tr>
+      <tr class="mdetail" data-d="${i}" style="display:none"><td colspan="8">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;padding:8px 4px">
+        ${["HR","TB","HRR","Hits"].map(x=>`<div><div class="lbl" style="font-size:11px;color:var(--muted);text-transform:uppercase;margin-bottom:4px">${x} = ${p.scores[x].score} <span class="gpill ${gradeCls(p.scores[x].grade)}">${p.scores[x].grade}</span></div>${bdBars(p.scores[x].breakdown)}</div>`).join("")}
+        </div></td></tr>`;
+  }).join("");
+  $("#view").innerHTML=`<div class="chips">${chips}</div>
+    <div class="sp" style="color:var(--muted);margin-bottom:8px">${rows.length} players · click a row for the score breakdown</div>
+    <div class="panel"><table class="cs"><thead><tr><th>#</th><th>Player</th><th>Matchup</th>
+      <th>HR</th><th>TB</th><th>HRR</th><th>Hit</th><th>Env</th></tr></thead><tbody>${body}</tbody></table></div>`;
+  document.querySelectorAll(".chip[data-mm]").forEach(c=>c.onclick=()=>{STATE.modelMarket=c.dataset.mm; renderModel();});
+  document.querySelectorAll(".mrow").forEach(r=>r.onclick=()=>{
+    const dt=document.querySelector(`.mdetail[data-d="${r.dataset.i}"]`);
+    if(dt) dt.style.display = dt.style.display==="none"?"table-row":"none";});
 }
 
 // --- glossary + tooltips (Phase 16) ---

@@ -193,6 +193,52 @@ def api_ledger():
     return _ledger()
 
 
+@app.get("/api/home/{date}")
+def api_home(date: str):
+    from .. import featured
+    try:
+        date = resolve_date(date)
+    except ValueError:
+        raise HTTPException(400, "bad date")
+    s = _slate(date)
+    if not s["exists"]:
+        return {"exists": False, "date": date}
+    g, m = s["games"], s["matchups"]
+    pitchers = _df_records(_out_dir() / date / "pitchers.csv")
+    return {
+        "exists": True, "date": date,
+        "read": featured.slate_read(g, m, pitchers),
+        "best5": featured.best5(m, pitchers, g),
+        "top": {mk: featured.top_by_market(m, mk, 5) for mk in featured.MARKETS},
+        "pitchers": featured.pitchers_to_attack(pitchers, g, 5),
+        "meta": s.get("meta", {}),
+    }
+
+
+@app.get("/api/model/{date}")
+def api_model(date: str):
+    from .. import featured
+    try:
+        date = resolve_date(date)
+    except ValueError:
+        raise HTTPException(400, "bad date")
+    s = _slate(date)
+    if not s["exists"]:
+        return {"exists": False, "date": date, "players": []}
+    players = []
+    for m in s["matchups"]:
+        sc = featured.market_scores(m)
+        players.append({
+            "batter": m.get("batter"), "batter_id": m.get("batter_id"),
+            "team": m.get("team"), "opp_team": m.get("opp_team"),
+            "opp_sp": m.get("opp_sp"), "order": m.get("order"),
+            "platoon": m.get("platoon"), "env_tier": m.get("env_tier"),
+            "lineup_state": m.get("lineup_state"), "tags": m.get("tags"),
+            "scores": sc,
+        })
+    return {"exists": True, "date": date, "players": players}
+
+
 @app.post("/api/run")
 def api_run(payload: dict):
     return {"job_id": _spawn("run", payload)}
