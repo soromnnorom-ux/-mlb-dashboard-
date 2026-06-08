@@ -189,3 +189,18 @@ def parse_statcast(text: Optional[str]) -> List[dict]:
             "bb_type": (row.get("bb_type") or "").strip(),
         })
     return out
+
+
+def parse_pa_events(text: Optional[str]) -> List[dict]:
+    """One dict per plate-appearance outcome (rows with a non-empty `events`).
+
+    Includes strikeouts/walks, unlike parse_statcast -- needed to compute a
+    correct batting average over a recent window.
+    """
+    out: List[dict] = []
+    for row in _read_csv(text):
+        ev = (row.get("events") or "").strip()
+        if not ev:
+            continue
+        out.append({"game_date": row.get("game_date"), "events": ev})
+    return out
