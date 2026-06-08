@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MLB HR Playbook — {{ date }}</title>
+<style>
+  :root { --bg:#0f1419; --card:#1a2129; --ink:#e6e6e6; --mut:#8aa; --line:#2a3540; }
+  body { font-family: -apple-system, Segoe UI, Roboto, sans-serif; background:var(--bg);
+         color:var(--ink); margin:0; padding:24px; line-height:1.45; }
+  h1 { margin:0 0 4px; } .sub { color:var(--mut); font-size:13px; margin-bottom:16px; }
+  .banner { background:var(--card); border:1px solid var(--line); border-radius:10px;
+            padding:14px 16px; margin-bottom:20px; }
+  .note { font-weight:600; margin-top:6px; }
+  .warn { color:#ffb454; }
+  h2 { border-bottom:2px solid var(--line); padding-bottom:6px; margin-top:28px; }
+  .t1 { color:#4ade80; } .t2 { color:#facc15; } .t3 { color:#f87171; }
+  .play { background:var(--card); border:1px solid var(--line); border-left:4px solid var(--line);
+          border-radius:8px; padding:12px 14px; margin:10px 0; }
+  .t1 .play, .play.tier1 { border-left-color:#4ade80; }
+  .play .hdr { font-size:15px; } .play .hdr b { color:#fff; }
+  .meta { color:var(--mut); font-size:13px; margin-top:4px; }
+  .metrics { font-size:13px; margin-top:4px; }
+  .tag { display:inline-block; background:#22303c; color:#9cf; border-radius:4px;
+         padding:1px 6px; font-size:11px; margin-right:4px; }
+  .bet { display:inline-block; background:#143; color:#7f7; border-radius:4px;
+         padding:1px 7px; font-size:12px; font-weight:700; margin-right:6px; }
+  .state { color:#ffb454; font-size:12px; }
+  .empty { color:var(--mut); font-style:italic; }
+  b.hot { color:#ff7; }
+</style>
+</head>
+<body>
+<h1>⚾ MLB HR Playbook — {{ date }}</h1>
+<div class="sub">Generated {{ generated_at }} · gate={{ gate }} · max HR plays={{ max_plays }}{% if offline %} · <span class="warn">OFFLINE (cached)</span>{% endif %}</div>
+{% for w in warnings %}<div class="sub warn">⚠️ {{ w }}</div>{% endfor %}
+
+<div class="banner">
+  <div><b>{{ banner.n_games }} games</b> · {{ banner.n_elite }} elite-env · {{ banner.n_good }} good-env · {{ banner.n_dead }} dead-air</div>
+  <div class="note">{{ banner.note }}</div>
+  {% if dead_games %}<div class="meta">Dead-air (HRs suppressed, TB live): {{ dead_games | join(", ") }}</div>{% endif %}
+</div>
+
+{% macro play(v, cls) %}
+<div class="play {{ cls }}">
+  <div class="hdr"><b>{{ v.name }}</b> ({{ v.team }}{% if v.order %}, #{{ v.order }}{% endif %})
+     vs <b>{{ v.opp_sp }}</b>{% if v.throws %} ({{ v.throws }}HP){% endif %}
+     · <i>{{ v.opp_team }}</i> · env {{ v.env_tier }}({{ v.env_score }})
+     · SP-score {{ v.pitcher_score }} · play {{ v.play_score }}
+     {% if v.lineup_state != "confirmed" %}<span class="state">[{{ v.lineup_state }}]</span>{% endif %}</div>
+  <div class="meta">SP: {{ v.pitcher_summary }}</div>
+  <div class="metrics">B% vs PM: <b>{{ v.barrel_vs_pm }}</b> (n={{ v.barrel_vs_pm_bbe }}) ·
+     brl {{ v.barrel_pct }} · EV {{ v.avg_ev }} · HH {{ v.hardhit_pct }} · ISO {{ v.iso }} · LA {{ v.la_avg }}</div>
+  <div class="metrics">EV logs: {{ v.ev_logs | safe }} · L30 {{ v.l30 }}</div>
+  <div style="margin-top:6px;">
+    {% for t in v.tags %}<span class="tag">{{ t }}</span>{% endfor %}
+    {% for k, val in v.bets.items() %}<span class="bet">{{ val }}</span>{% endfor %}
+    {% if v.value != "unknown" %}<span class="meta">({{ v.value }})</span>{% endif %}
+  </div>
+</div>
+{% endmacro %}
+
+<h2 class="t1">🟢 Tier 1 — CORE (max {{ max_plays }})</h2>
+{% if tiers[1] %}{% for v in tiers[1] %}{{ play(v, "tier1") }}{% endfor %}{% else %}<p class="empty">No Tier 1 plays — thin slate, lean TB.</p>{% endif %}
+
+<h2 class="t2">🟡 Tier 2 — ENV-BOOSTED</h2>
+{% if tiers[2] %}{% for v in tiers[2] %}{{ play(v, "") }}{% endfor %}{% else %}<p class="empty">None.</p>{% endif %}
+
+<h2 class="t3">🔴 Tier 3 — LOTTERY (do not overweight)</h2>
+{% if tiers[3] %}{% for v in tiers[3] %}{{ play(v, "") }}{% endfor %}{% else %}<p class="empty">None.</p>{% endif %}
+
+<p class="meta" style="margin-top:24px;">TB 2+ is the bread-and-butter; HR is the capped premium layer; HRR/Hits are lower-variance.
+Start from environment, not players. Cut to {{ max_plays }} HR plays max.</p>
+</body>
+</html>

@@ -1,0 +1,32 @@
+# MLB HR Playbook — {{ date }}
+
+_Generated {{ generated_at }} · gate=`{{ gate }}` · max HR plays={{ max_plays }}{% if offline %} · **OFFLINE (cached)**{% endif %}_
+{% if warnings %}
+{% for w in warnings %}> ⚠️ {{ w }}
+{% endfor %}{% endif %}
+## SLATE READ
+**{{ banner.n_games }} games** · {{ banner.n_elite }} elite-env · {{ banner.n_good }} good-env · {{ banner.n_dead }} dead-air
+> {{ banner.note }}
+{% if dead_games %}
+_Dead-air (HRs suppressed, TB still live):_ {{ dead_games | join(", ") }}
+{% endif %}
+{% macro line(v) %}
+- **{{ v.name }}** ({{ v.team }}{% if v.order %}, #{{ v.order }}{% endif %}) vs **{{ v.opp_sp }}**{% if v.throws %} ({{ v.throws }}HP){% endif %} · _{{ v.opp_team }}_ · env **{{ v.env_tier }}**({{ v.env_score }}) · SP-score {{ v.pitcher_score }} · play **{{ v.play_score }}**{% if v.lineup_state != "confirmed" %} · _{{ v.lineup_state }}_{% endif %}
+  - SP: {{ v.pitcher_summary }}
+  - B% vs PM: **{{ v.barrel_vs_pm }}** (n={{ v.barrel_vs_pm_bbe }}) · brl {{ v.barrel_pct }} · EV {{ v.avg_ev }} · HH {{ v.hardhit_pct }} · ISO {{ v.iso }} · LA {{ v.la_avg }}
+  - EV logs: {{ v.ev_logs }} · L30 {{ v.l30 }}{% if v.tags_str %} · {{ v.tags_str }}{% endif %}
+  {%- if v.bets %}
+  - 🎯 {% for k, val in v.bets.items() %}**{{ val }}**{% if not loop.last %} · {% endif %}{% endfor %}{% if v.value != "unknown" %} _({{ v.value }})_{% endif %}
+  {%- endif %}
+{% endmacro %}
+## 🟢 TIER 1 — CORE (play these, max {{ max_plays }})
+{% if tiers[1] %}{% for v in tiers[1] %}{{ line(v) }}{% endfor %}{% else %}_No Tier 1 plays — thin slate, lean TB._
+{% endif %}
+## 🟡 TIER 2 — ENV-BOOSTED (smaller exposure)
+{% if tiers[2] %}{% for v in tiers[2] %}{{ line(v) }}{% endfor %}{% else %}_None._
+{% endif %}
+## 🔴 TIER 3 — LOTTERY (trash / do not overweight)
+{% if tiers[3] %}{% for v in tiers[3] %}{{ line(v) }}{% endfor %}{% else %}_None._
+{% endif %}
+---
+_TB 2+ is the bread-and-butter; HR is the capped premium layer; HRR/Hits are lower-variance. Start from environment, not players. Cut to {{ max_plays }} HR plays max._
