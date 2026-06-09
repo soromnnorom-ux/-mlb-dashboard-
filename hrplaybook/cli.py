@@ -486,6 +486,34 @@ def schedule_install(
     typer.echo(f"Wrote {out}\nInstall with:  crontab -l 2>/dev/null | cat - {out} | crontab -")
 
 
+@app.command("backfill-snapshots")
+def backfill_snapshots(
+    network: bool = typer.Option(False, "--network",
+                                 help="rebuild slates from CURRENT data (not point-in-time)"),
+):
+    """Enrich historical picks.json with all-market raw probs from local matchups.csv."""
+    from . import backfill_snapshots as bf
+    from . import calibration
+    before = calibration.coverage(calibration.load_tables("out"))
+    if network:
+        typer.echo("⚠️  WARNING: network backfill may not be point-in-time accurate "
+                   "(uses current leaderboards -> possible lookahead bias).")
+    res = bf.backfill("out", network=network)
+    typer.echo(f"scanned {res['scanned']} dates · enriched {res['dates_enriched']} dates · "
+               f"{res['picks_enriched']} picks enriched · {res['picks_skipped']} skipped")
+    if res["reasons"]:
+        typer.echo("skip/warn reasons: " + ", ".join(f"{k}={v}" for k, v in res["reasons"].items()))
+    # rebuild calibration and show before/after sample coverage
+    after_tables = calibration.save_tables("out")
+    after = calibration.coverage(after_tables)
+    typer.echo("\nCalibration sample by market (before -> after):")
+    for mk in calibration.COVERAGE_MARKETS:
+        b = before.get(mk, {}).get("n", 0)
+        a = after.get(mk, {}).get("n", 0)
+        typer.echo(f"  {mk:>4}: {b} -> {a}   [{after.get(mk, {}).get('status')}]")
+    typer.echo("Run `hrplaybook calibrate` is already done (tables rebuilt).")
+
+
 @app.command()
 def calibrate():
     """(Re)build empirical probability-calibration tables from the result ledger."""

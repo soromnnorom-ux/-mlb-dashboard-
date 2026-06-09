@@ -645,6 +645,7 @@ async function renderModel(){
   try{ const v=await api("/api/value/"+STATE.date);
        (v.rows||[]).forEach(r=>{ if(r.odds!=null) vmap[r.player+"||"+r.bet_type]=r; }); }catch(e){}
   if(!d.exists){ $("#view").innerHTML=`<div class="empty">No data for <b>${STATE.date}</b>. Click <b>Run</b>.</div>`; return; }
+  const MODEL_COV=d.coverage||{};
   const mk=STATE.modelMarket||"HR";
   const rows=[...d.players].sort((a,b)=>b.scores[mk].score-a.scores[mk].score);
   const chips=["HR","TB","HRR","Hits"].map(x=>`<div class="chip ${x===mk?'active':''}" data-mm="${x}">sort: ${x}</div>`).join("");
@@ -660,7 +661,10 @@ async function renderModel(){
       <tr class="mdetail" data-d="${i}" style="display:none"><td colspan="8">
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;padding:8px 4px">
         ${["HR","TB","HRR","Hits"].map(x=>{const vr=vmap[p.batter+"||"+x];const pr=(p.probs||{})[x]||{};
-          const probLine=`<div class="sub" style="margin-top:4px">Raw prob ${pctFmt(pr.raw)} → <b>Cal ${pctFmt(pr.calibrated)}</b>${pr.warning&&pr.warning!=="NO_CALIBRATION_DATA"?` <span class="sp" style="color:#d29922">[${pr.warning}]</span>`:""}</div>`;
+          const cst=(MODEL_COV[x]||{}).status||"";
+          const probLine=`<div class="sub" style="margin-top:4px">Raw prob ${pctFmt(pr.raw)} → <b>Cal ${pctFmt(pr.calibrated)}</b>
+            ${cst?`<span class="gpill ${({CALIBRATED:'g-A',PARTIAL:'g-B',RAW_FALLBACK:'g-C',NO_DATA:'g-D'})[cst]||'g-C'}">${cst}</span>`:""}
+            ${pr.warning&&pr.warning!=="NO_CALIBRATION_DATA"?` <span class="sp" style="color:#d29922">${pr.warning}</span>`:""}</div>`;
           const vline=vr?`<div class="sub" style="margin-top:2px">💰 ${oddsFmt(vr.odds)} · edge ${edgeFmt(vr.edge)} · <span class="gpill ${valCls(vr.value)}">${vr.value}</span></div>`
             :`<div class="sub" style="margin-top:2px;color:var(--muted)">Value unknown — odds not entered</div>`;
           return `<div><div class="lbl" style="font-size:11px;color:var(--muted);text-transform:uppercase;margin-bottom:4px">${x} = ${p.scores[x].score} <span class="gpill ${gradeCls(p.scores[x].grade)}">${p.scores[x].grade}</span></div>${bdBars(p.scores[x].breakdown)}${probLine}${vline}</div>`;}).join("")}
@@ -744,7 +748,15 @@ async function renderPerformance(){
       <td class="mono ${c.improvement>=0?'ev-pos':'ev-neg'}">${c.improvement>=0?'+':''}${(c.improvement*100).toFixed(1)}</td></tr>`).join("")
     +`</tbody></table></div>`:"";
 
-  $("#view").innerHTML=`<div class="chips">${chips}</div>`+lowWarn+cards+richNote
+  const cvg=p.calibration_coverage||{};
+  const cvgCls={CALIBRATED:"g-A",PARTIAL:"g-B",RAW_FALLBACK:"g-C",NO_DATA:"g-D"};
+  const cvgTbl=`<h3>Calibration Coverage</h3><div class="panel"><table><thead><tr>
+    <th>Market</th><th>Status</th><th>Sample</th><th>Buckets</th><th>Note</th></tr></thead><tbody>`+
+    ["HR","TB","HRR","Hits"].map(mk=>{const c=cvg[mk]||{};
+     return `<tr><td><b>${mk}</b></td><td><span class="gpill ${cvgCls[c.status]||'g-C'}">${c.status||'?'}</span></td>
+       <td class="mono">${c.n||0}</td><td class="mono">${c.buckets_calibrated||0}/${c.buckets_total||0}</td>
+       <td class="sp" style="color:#adbac7">${c.message||''}</td></tr>`;}).join("")+`</tbody></table></div>`;
+  $("#view").innerHTML=`<div class="chips">${chips}</div>`+lowWarn+cards+richNote+cvgTbl
     +tbl("Bet Type Performance",bt,"Bet")
     +calTbl+csTbl+insights+vaTbl
     +tbl("Grade Performance",p.by_grade,"Grade")
@@ -835,7 +847,13 @@ async function renderValue(){
       <td class="mono">${edgeFmt(r.edge)}</td><td><span class="gpill ${valCls(r.value)}">${r.value}</span></td></tr>`).join("")+`</tbody></table></div>`
     :`<div class="sp" style="color:var(--muted)">no priced plays — enter odds above</div>`);
 
-  $("#view").innerHTML=statusBar
+  const cov=v.coverage||{};
+  const covCls={CALIBRATED:"g-A",PARTIAL:"g-B",RAW_FALLBACK:"g-C",NO_DATA:"g-D"};
+  const covPanel=`<div class="read" style="border-left-color:#388bfd"><div class="rg">
+    <b>Calibration coverage:</b> `+["HR","TB","HRR","Hits"].map(mk=>{const c=cov[mk]||{};
+      return `<span class="gpill ${covCls[c.status]||'g-C'}" title="${(c.message||'').replace(/"/g,'')}">${mk}: ${c.status||'?'}${c.n?` n=${c.n}`:''}</span>`;}).join(" ")
+    +`<br/><span class="sp">${(cov.HRR&&cov.HRR.message)||''} ${(cov.Hits&&cov.Hits.message)||''}</span></div></div>`;
+  $("#view").innerHTML=statusBar+covPanel
     +`<div class="best-grid">${cards}${ov}</div>`
     +alerts+form+moList+lbVal+lbRaw;
   // wire form

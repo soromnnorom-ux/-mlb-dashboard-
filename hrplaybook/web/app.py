@@ -348,10 +348,10 @@ def api_value(date: str):
     if not s["exists"]:
         return {"exists": False, "date": date}
     from .. import calibration
+    tables = calibration.load_tables(_out_dir())
     manual = manual_odds.load(date)
-    res = value_center.market_vs_model(s["matchups"], manual, api=None,
-                                       tables=calibration.load_tables(_out_dir()))
-    return {"exists": True, "date": date, **res}
+    res = value_center.market_vs_model(s["matchups"], manual, api=None, tables=tables)
+    return {"exists": True, "date": date, "coverage": calibration.coverage(tables), **res}
 
 
 @app.get("/api/model/{date}")
@@ -381,13 +381,15 @@ def api_model(date: str):
             "lineup_state": m.get("lineup_state"), "tags": m.get("tags"),
             "scores": sc, "probs": probs,
         })
-    return {"exists": True, "date": date, "players": players}
+    return {"exists": True, "date": date, "players": players,
+            "coverage": calibration.coverage(tables)}
 
 
 @app.get("/api/calibration")
 def api_calibration():
     from .. import calibration
-    return {"tables": calibration.load_tables(_out_dir())}
+    tables = calibration.load_tables(_out_dir())
+    return {"tables": tables, "coverage": calibration.coverage(tables)}
 
 
 @app.post("/api/run")

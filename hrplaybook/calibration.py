@@ -151,6 +151,46 @@ def calibrate(raw: Optional[float], bet: str, tables: dict) -> dict:
 # --------------------------------------------------------------------------- #
 # Persistence + cache
 # --------------------------------------------------------------------------- #
+COVERAGE_MARKETS = ["HR", "TB", "HRR", "Hits"]
+
+
+def coverage(tables: dict) -> Dict[str, dict]:
+    """Per-market calibration coverage + status for the dashboard.
+
+    CALIBRATED   = bet-type sample big and every populated bucket >= MIN_SAMPLE
+    PARTIAL      = some buckets calibrated, others fall back to raw/baseline
+    RAW_FALLBACK = bet-type sample too small to trust
+    NO_DATA      = no historical prob+result rows for this market
+    """
+    out = {}
+    for bet in COVERAGE_MARKETS:
+        bt = tables.get(bet)
+        if not bt or not bt.get("buckets"):
+            out[bet] = {"n": 0, "buckets_calibrated": 0, "buckets_total": 0,
+                        "status": "NO_DATA",
+                        "message": f"{bet} has no graded probability history yet — using raw probability."}
+            continue
+        bks = bt["buckets"]
+        cal = sum(1 for e in bks.values() if e["n"] >= MIN_SAMPLE)
+        total = len(bks)
+        n = bt.get("_n", 0)
+        if n < MIN_SAMPLE:
+            status = "RAW_FALLBACK"
+            msg = f"{bet} is using raw fallback until enough graded results exist (n={n})."
+        elif cal == total:
+            status = "CALIBRATED"
+            msg = f"{bet} is empirically calibrated ({n} graded bets)."
+        elif cal > 0:
+            status = "PARTIAL"
+            msg = f"{bet} is partially calibrated — {cal}/{total} buckets have enough sample; others use raw fallback."
+        else:
+            status = "RAW_FALLBACK"
+            msg = f"{bet} is using raw fallback until buckets reach {MIN_SAMPLE} samples."
+        out[bet] = {"n": n, "buckets_calibrated": cal, "buckets_total": total,
+                    "status": status, "message": msg}
+    return out
+
+
 def _path(out_root: str | Path) -> Path:
     return Path(out_root) / "_calibration.json"
 
