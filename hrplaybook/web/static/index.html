@@ -160,6 +160,7 @@
   <button data-tab="model">My Model</button>
   <button data-tab="sheet">Cheat Sheet</button>
   <button data-tab="cards">Bet Cards</button>
+  <button data-tab="value">Value</button>
   <button data-tab="weather">Weather</button>
   <button data-tab="pitchers">Pitchers</button>
   <button data-tab="missed">Missed HR</button>
@@ -216,6 +217,7 @@ function render(){
   if(STATE.tab==="glossary"){ return renderGlossary(); }
   if(STATE.tab==="home"){ return renderHome(); }
   if(STATE.tab==="model"){ return renderModel(); }
+  if(STATE.tab==="value"){ return renderValue(); }
   if(STATE.tab==="weather"){ return renderWeather(); }
   if(STATE.tab==="pitchers"){ return renderPitchers(); }
   if(STATE.tab==="missed"){ return renderMissed(); }
@@ -497,7 +499,8 @@ async function renderHome(){
     ${envWidget("Best TB Environment", w.best_tb_env, "tb")}
     ${pWidget("Most Attackable Pitcher", w.top_pitcher)}
     ${mWidget("Best Missed HR", w.best_missed_hr)}
-    ${cWidget("Best Contact Cluster", w.best_contact)}</div>`;
+    ${cWidget("Best Contact Cluster", w.best_contact)}
+    ${vWidget("Top Value Bet", (h.value||{}).best_overall, (h.value||{}).has_odds)}</div>`;
   $("#view").innerHTML=read+gradeRow+summaryStats
     +`<h3>Quick widgets</h3>`+widgets
     +`<h3>Today's Best 5</h3><div class="best-grid">${cards}</div>`+tops;
@@ -526,6 +529,14 @@ function mWidget(label,c){
     <div class="big"><span class="gpill ${txtGrade(c.grade)}">${c.grade}</span></div>
     <div class="nm" style="margin-top:6px">${c.batter}</div>
     <div class="sub">${c.team} vs ${c.opp_sp||c.opp_team} · ${det}</div></div>`;
+}
+function vWidget(label,r,hasOdds){
+  if(!r) return `<div class="bcard"><div class="lbl">${label}</div><div class="sub" style="margin-top:14px">${hasOdds?'no +EV plays':'enter odds in Value tab'}</div></div>`;
+  return `<div class="bcard"><div class="lbl">${label}</div>
+    <div class="big"><span class="gpill ${valCls(r.value)}">${r.value}</span></div>
+    <div class="nm" style="margin-top:6px">${r.player}</div>
+    <div class="sub">${r.bet_type} · ${oddsFmt(r.odds)} · edge ${edgeFmt(r.edge)}</div>
+    <div class="sub">model ${pctFmt(r.model_prob)} vs implied ${pctFmt(r.implied_prob)}</div></div>`;
 }
 function cWidget(label,c){
   if(!c) return `<div class="bcard"><div class="lbl">${label}</div><div class="sub" style="margin-top:14px">n/a (run with Statcast)</div></div>`;
@@ -618,7 +629,9 @@ async function renderContact(){
 async function renderModel(){
   if($("#dateSel").value)STATE.date=$("#dateSel").value;
   $("#view").innerHTML=`<div class="empty">Loading…</div>`;
-  let d; try{ d=await api("/api/model/"+STATE.date); }catch(e){ d={exists:false}; }
+  let d,vmap={}; try{ d=await api("/api/model/"+STATE.date); }catch(e){ d={exists:false}; }
+  try{ const v=await api("/api/value/"+STATE.date);
+       (v.rows||[]).forEach(r=>{ if(r.odds!=null) vmap[r.player+"||"+r.bet_type]=r; }); }catch(e){}
   if(!d.exists){ $("#view").innerHTML=`<div class="empty">No data for <b>${STATE.date}</b>. Click <b>Run</b>.</div>`; return; }
   const mk=STATE.modelMarket||"HR";
   const rows=[...d.players].sort((a,b)=>b.scores[mk].score-a.scores[mk].score);
@@ -634,7 +647,10 @@ async function renderModel(){
       ${cells}<td>${envBadge(p.env_tier)}</td></tr>
       <tr class="mdetail" data-d="${i}" style="display:none"><td colspan="8">
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;padding:8px 4px">
-        ${["HR","TB","HRR","Hits"].map(x=>`<div><div class="lbl" style="font-size:11px;color:var(--muted);text-transform:uppercase;margin-bottom:4px">${x} = ${p.scores[x].score} <span class="gpill ${gradeCls(p.scores[x].grade)}">${p.scores[x].grade}</span></div>${bdBars(p.scores[x].breakdown)}</div>`).join("")}
+        ${["HR","TB","HRR","Hits"].map(x=>{const vr=vmap[p.batter+"||"+x];
+          const vline=vr?`<div class="sub" style="margin-top:4px">💰 ${oddsFmt(vr.odds)} · edge ${edgeFmt(vr.edge)} · <span class="gpill ${valCls(vr.value)}">${vr.value}</span></div>`
+            :`<div class="sub" style="margin-top:4px;color:var(--muted)">Value unknown — odds not entered</div>`;
+          return `<div><div class="lbl" style="font-size:11px;color:var(--muted);text-transform:uppercase;margin-bottom:4px">${x} = ${p.scores[x].score} <span class="gpill ${gradeCls(p.scores[x].grade)}">${p.scores[x].grade}</span></div>${bdBars(p.scores[x].breakdown)}${vline}</div>`;}).join("")}
         </div></td></tr>`;
   }).join("");
   $("#view").innerHTML=`<div class="chips">${chips}</div>
@@ -645,6 +661,100 @@ async function renderModel(){
   document.querySelectorAll(".mrow").forEach(r=>r.onclick=()=>{
     const dt=document.querySelector(`.mdetail[data-d="${r.dataset.i}"]`);
     if(dt) dt.style.display = dt.style.display==="none"?"table-row":"none";});
+}
+
+// --- Market vs Model / Value (Phase 14, Batch 4) ---
+function oddsFmt(o){return o==null?"—":(o>0?"+":"")+o;}
+function pctFmt(p){return p==null?"—":(p*100).toFixed(0)+"%";}
+function edgeFmt(e){if(e==null)return "—";const s=(e*100);return `<span class="${s>=0?'ev-pos':'ev-neg'}">${s>=0?'+':''}${s.toFixed(1)}%</span>`;}
+function valCls(g){return {"A+":"g-Ap","A":"g-A","B":"g-B","C":"g-C","D":"g-D","Unknown":"g-C"}[g]||"g-C";}
+function staleDot(s){const c={ok:"#2ea043",yellow:"#d29922",red:"#da3633",unknown:"#6e7681"}[s]||"#6e7681";
+  return `<span title="odds ${s}" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${c};margin-right:4px"></span>`;}
+
+async function renderValue(){
+  $("#view").innerHTML=`<div class="empty">Loading…</div>`;
+  let v,mo,os;
+  try{ [v,mo,os]=await Promise.all([
+    api("/api/value/"+STATE.date), api("/api/manual-odds/"+STATE.date), api("/api/odds-status")]); }
+  catch(e){ $("#view").innerHTML=`<div class="empty">No data. Click <b>Run</b>.</div>`; return; }
+  if(!v.exists){ $("#view").innerHTML=`<div class="empty">No slate for <b>${STATE.date}</b>. Click <b>Run</b>.</div>`; return; }
+  // odds API status (never shows key value)
+  const oc=os.connected;
+  const statusBar=`<div class="read" style="border-left-color:${oc?'#2ea043':'#6e7681'}">
+    <div class="rg"><b>Odds API:</b> ${oc?'connected':'not connected'}
+      ${os.active_key_name?`· active key <b>${os.active_key_name}</b>`:''}
+      ${os.configured&&os.configured.length?`· configured: ${os.configured.join(', ')}`:''}
+      ${oc&&os.keys?(()=>{const k=os.keys.find(x=>x.valid&&x.quota_remaining!=null);return k?` · quota ${k.quota_remaining}`:'';})():''}
+      ${!oc?`<span class="sp"> · manual odds entry below still works</span>`:''}</div></div>`;
+  // best value cards
+  const bv=v.best_value||{};
+  const cards=["HR","TB","HRR","Hits"].map(mk=>{const r=bv[mk];
+    if(!r) return `<div class="bcard"><div class="lbl">Best Value ${mk}</div><div class="sub" style="margin-top:14px">no +EV odds</div></div>`;
+    return `<div class="bcard"><div class="lbl">Best Value ${mk}</div>
+      <div class="big"><span class="gpill ${valCls(r.value)}">${r.value}</span></div>
+      <div class="nm" style="margin-top:6px">${r.player}</div>
+      <div class="sub">${r.team} · ${oddsFmt(r.odds)} ${r.sportsbook||''} · edge ${edgeFmt(r.edge)}</div>
+      <div class="sub">model ${pctFmt(r.model_prob)} vs implied ${pctFmt(r.implied_prob)}</div></div>`;}).join("");
+  const ov=v.best_overall?`<div class="bcard"><div class="lbl">Best Overall Value</div>
+      <div class="big"><span class="gpill ${valCls(v.best_overall.value)}">${v.best_overall.value}</span></div>
+      <div class="nm" style="margin-top:6px">${v.best_overall.player}</div>
+      <div class="sub">${v.best_overall.bet_type} · ${oddsFmt(v.best_overall.odds)} · edge ${edgeFmt(v.best_overall.edge)}</div></div>`
+    :`<div class="bcard"><div class="lbl">Best Overall Value</div><div class="sub" style="margin-top:14px">no odds entered</div></div>`;
+  // alerts
+  const alerts=v.alerts&&v.alerts.length?`<h3>⚡ Value Alerts (edge ≥ 5%)</h3><div class="panel"><table><thead><tr>
+    <th>Player</th><th>Bet</th><th>Book</th><th>Odds</th><th>Model</th><th>Implied</th><th>Edge</th><th>Grade</th></tr></thead><tbody>`+
+    v.alerts.map(r=>`<tr><td><b>${r.player}</b></td><td>${r.bet_type}</td><td>${r.sportsbook||''}</td>
+      <td class="mono">${oddsFmt(r.odds)}</td><td class="mono">${pctFmt(r.model_prob)}</td>
+      <td class="mono">${pctFmt(r.implied_prob)}</td><td class="mono">${edgeFmt(r.edge)}</td>
+      <td><span class="gpill ${valCls(r.value)}">${r.value}</span></td></tr>`).join("")+`</tbody></table></div>`
+    :`<h3>⚡ Value Alerts</h3><div class="sp" style="color:var(--muted)">none (enter odds to surface +EV plays)</div>`;
+  // manual entry form
+  const bts=(mo.bet_types||["HR","TB","HRR","Hits","RBI"]).map(b=>`<option>${b}</option>`).join("");
+  const sbs=(mo.sportsbooks||["DraftKings","FanDuel","Other"]).map(b=>`<option>${b}</option>`).join("");
+  const form=`<h3>Manual Odds Entry</h3>
+    <div class="filters">
+      <input id="mo_player" placeholder="player" style="width:160px"/>
+      <input id="mo_team" placeholder="team" style="width:60px"/>
+      <select id="mo_bet">${bts}</select>
+      <select id="mo_book">${sbs}</select>
+      <input id="mo_odds" placeholder="odds e.g. +180" style="width:90px"/>
+      <input id="mo_line" placeholder="line" style="width:70px"/>
+      <button class="primary" id="mo_add">Add</button></div>`;
+  const entries=(mo.entries||[]);
+  const moList=entries.length?`<div class="panel"><table><thead><tr><th>Player</th><th>Tm</th><th>Bet</th><th>Book</th>
+    <th>Odds</th><th>Line</th><th>When</th><th></th></tr></thead><tbody>`+
+    entries.map(e=>`<tr><td>${e.player}</td><td>${e.team||''}</td><td>${e.bet_type}</td><td>${e.sportsbook}</td>
+      <td class="mono">${oddsFmt(e.odds)}</td><td>${e.line||''}</td>
+      <td class="sp">${(e.timestamp||'').replace('T',' ').slice(5,16)}</td>
+      <td><button data-del="${e.id}">✕</button></td></tr>`).join("")+`</tbody></table></div>`
+    :`<div class="sp" style="color:var(--muted);margin-bottom:10px">no manual odds yet</div>`;
+  // leaderboards
+  const lbRaw=`<h3>Best Raw Plays <span class="sp" style="color:var(--muted)">(most likely to hit)</span></h3>
+    <div class="panel"><table><thead><tr><th>#</th><th>Player</th><th>Bet</th><th>Model score</th><th>Model %</th><th>Odds</th><th>Value</th></tr></thead><tbody>`+
+    (v.leaderboard_raw||[]).map((r,i)=>`<tr><td class="rk">${i+1}</td><td><b>${r.player}</b> <span class="sp">${r.team}</span></td>
+      <td>${r.bet_type}</td><td class="mono">${r.model_score??'—'}</td><td class="mono">${pctFmt(r.model_prob)}</td>
+      <td class="mono">${oddsFmt(r.odds)}</td><td><span class="gpill ${valCls(r.value)}">${r.value}</span></td></tr>`).join("")+`</tbody></table></div>`;
+  const lbVal=`<h3>Best Value Plays <span class="sp" style="color:var(--muted)">(most mispriced)</span></h3>`+
+    ((v.leaderboard_value||[]).length?`<div class="panel"><table><thead><tr><th>#</th><th>Player</th><th>Bet</th><th>Odds</th><th>Model %</th><th>Implied %</th><th>Edge</th><th>Value</th></tr></thead><tbody>`+
+    v.leaderboard_value.map((r,i)=>`<tr><td class="rk">${i+1}</td><td><b>${r.player}</b> <span class="sp">${r.team}</span></td>
+      <td>${r.bet_type}</td><td class="mono">${oddsFmt(r.odds)} <span class="sp">${r.sportsbook||''}</span></td>
+      <td class="mono">${pctFmt(r.model_prob)}</td><td class="mono">${pctFmt(r.implied_prob)}</td>
+      <td class="mono">${edgeFmt(r.edge)}</td><td><span class="gpill ${valCls(r.value)}">${r.value}</span></td></tr>`).join("")+`</tbody></table></div>`
+    :`<div class="sp" style="color:var(--muted)">no priced plays — enter odds above</div>`);
+
+  $("#view").innerHTML=statusBar
+    +`<div class="best-grid">${cards}${ov}</div>`
+    +alerts+form+moList+lbVal+lbRaw;
+  // wire form
+  $("#mo_add").onclick=async()=>{
+    const body={player:$("#mo_player").value,team:$("#mo_team").value,bet_type:$("#mo_bet").value,
+      sportsbook:$("#mo_book").value,odds:$("#mo_odds").value,line:$("#mo_line").value};
+    if(!body.player||!body.odds){return;}
+    await api("/api/manual-odds/"+STATE.date,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+    renderValue();
+  };
+  document.querySelectorAll("button[data-del]").forEach(b=>b.onclick=async()=>{
+    await api("/api/manual-odds/"+STATE.date+"/"+b.dataset.del,{method:"DELETE"}); renderValue();});
 }
 
 // --- glossary + tooltips (Phase 16) ---

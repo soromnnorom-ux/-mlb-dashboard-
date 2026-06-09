@@ -205,10 +205,12 @@ def api_home(date: str):
         return {"exists": False, "date": date}
     g, m = s["games"], s["matchups"]
     pitchers = _df_records(_out_dir() / date / "pitchers.csv")
+    from .. import manual_odds, value_center
     wb = featured.weather_board(g)
     missed = featured.missed_hr_candidates(m)
     clusters = featured.contact_clusters(m)
     pa = featured.pitcher_attack_table(pitchers, g)
+    val = value_center.market_vs_model(m, manual_odds.load(date), api=None)
     return {
         "exists": True, "date": date,
         "read": featured.slate_read(g, m, pitchers),
@@ -222,6 +224,12 @@ def api_home(date: str):
             "top_pitcher": pa["top10"][0] if pa["top10"] else None,
             "best_missed_hr": missed[0] if missed else None,
             "best_contact": clusters[0] if clusters else None,
+        },
+        "value": {
+            "has_odds": val["has_odds"],
+            "best": val["best_value"],
+            "best_overall": val["best_overall"],
+            "alerts": val["alerts"][:5],
         },
         "meta": s.get("meta", {}),
     }
@@ -269,6 +277,65 @@ def api_contact(date: str):
         return {"exists": False, "date": date, "clusters": []}
     return {"exists": True, "date": date,
             "clusters": featured.contact_clusters(s["matchups"])}
+
+
+# --------------------------------------------------------------------------- #
+# Batch 4 — Market vs Model / odds
+# --------------------------------------------------------------------------- #
+def _key_tester():
+    from ..sources.odds import live_key_tester
+    return live_key_tester()
+
+
+@app.get("/api/odds-status")
+def api_odds_status():
+    from .. import odds_keys
+    odds_keys.load_dotenv()
+    if not odds_keys.has_any_key():
+        return {"connected": False, "active_key_name": None, "configured": [],
+                "keys": [], "reason": "no keys configured (manual odds still work)"}
+    return odds_keys.status(_key_tester())
+
+
+@app.post("/api/check-keys")
+def api_check_keys():
+    from .. import odds_keys
+    odds_keys.load_dotenv()
+    return {"keys": odds_keys.check_keys(_key_tester())}
+
+
+@app.get("/api/manual-odds/{date}")
+def api_manual_odds(date: str):
+    from .. import manual_odds
+    date = resolve_date(date)
+    return {"date": date, "entries": manual_odds.load(date),
+            "bet_types": manual_odds.BET_TYPES, "sportsbooks": manual_odds.SPORTSBOOKS}
+
+
+@app.post("/api/manual-odds/{date}")
+def api_manual_odds_add(date: str, payload: dict):
+    from .. import manual_odds
+    date = resolve_date(date)
+    return {"entry": manual_odds.add(date, payload)}
+
+
+@app.delete("/api/manual-odds/{date}/{entry_id}")
+def api_manual_odds_delete(date: str, entry_id: int):
+    from .. import manual_odds
+    date = resolve_date(date)
+    return {"deleted": manual_odds.delete(date, entry_id)}
+
+
+@app.get("/api/value/{date}")
+def api_value(date: str):
+    from .. import manual_odds, value_center
+    date = resolve_date(date)
+    s = _slate(date)
+    if not s["exists"]:
+        return {"exists": False, "date": date}
+    manual = manual_odds.load(date)
+    res = value_center.market_vs_model(s["matchups"], manual, api=None)
+    return {"exists": True, "date": date, **res}
 
 
 @app.get("/api/model/{date}")

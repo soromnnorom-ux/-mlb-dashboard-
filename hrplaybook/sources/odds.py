@@ -111,6 +111,32 @@ class TheOddsApiProvider:
         return {"HR": hr, "TB": tb}
 
 
+def live_key_tester(timeout: float = 8.0):
+    """Return a KeyTester(key)->(valid, quota_remaining, error) for The-Odds-API.
+
+    Hits the lightweight /sports endpoint and reads the x-requests-remaining
+    header. The key is only ever sent to the provider; it is never logged.
+    """
+    import httpx
+
+    def _test(key: str):
+        try:
+            r = httpx.get("https://api.the-odds-api.com/v4/sports",
+                          params={"apiKey": key}, timeout=timeout)
+        except Exception as e:  # noqa: BLE001
+            return False, None, type(e).__name__
+        if r.status_code == 200:
+            q = r.headers.get("x-requests-remaining")
+            return True, (int(q) if q and q.isdigit() else None), None
+        if r.status_code in (401, 403):
+            return False, None, "unauthorized"
+        if r.status_code == 422:
+            return False, None, "invalid_key"
+        return False, None, f"http_{r.status_code}"
+
+    return _test
+
+
 def make_provider(cfg, client: Client, name_index: Dict[str, int]) -> OddsProvider:
     if not cfg.odds.provider:
         return NoOpOddsProvider()

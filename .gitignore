@@ -11,3 +11,7 @@ venv/
 out/
 .pytest_cache/
 .DS_Store
+
+# odds api keys
+.env
+*.env
