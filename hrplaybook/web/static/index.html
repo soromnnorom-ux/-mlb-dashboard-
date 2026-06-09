@@ -163,6 +163,7 @@
   <button id="btnGrade">Grade</button>
   <button id="btnValidate" title="Check pitchers, lineups, weather, statcast, odds, game status">Validate</button>
   <button id="btnForce" title="Bypass cache and re-pull everything">Force Refresh</button>
+  <button id="btnYesterday" title="Review yesterday's (or the most recent graded) slate — one date only">📊 Yesterday Review</button>
   <label style="font-size:12px;color:var(--muted)"><input type="checkbox" id="noStat"/> no-statcast</label>
   <div class="spacer"></div>
   <div id="status">—</div>
@@ -1171,6 +1172,7 @@ $("#btnRefresh").onclick=()=>trigger("refresh");
 $("#btnGrade").onclick=()=>trigger("grade");
 $("#btnForce").onclick=()=>trigger("force-refresh");
 $("#btnValidate").onclick=()=>validate();
+$("#btnYesterday").onclick=()=>{ STATE.tab="performance"; STATE.perfWindow="yesterday"; setTab(); };
 
 (async()=>{ initTips(); await loadGlossary(); await loadDates(); await loadSlate();
   attachHeaderTips(); setStatus("ok","ready"); })();
