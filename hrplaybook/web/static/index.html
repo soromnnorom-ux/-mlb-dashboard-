@@ -66,7 +66,20 @@
   .mono{font-variant-numeric:tabular-nums}
   .ev-pos{color:#7ee787}.ev-neg{color:#f85149}
   h3{margin:18px 0 8px;font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+  /* Simple / Advanced mode */
+  #btnMode{background:#1f6feb22;border-color:#388bfd}
+  body[data-mode="simple"] .adv-only{display:none!important}
+  body[data-mode="simple"] main{line-height:1.5}
+  body[data-mode="simple"] .best-grid{gap:14px}
+  body[data-mode="simple"] .bcard{padding:16px}
+  body[data-mode="simple"] .bcard .nm{font-size:17px}
+  body[data-mode="simple"] h3{margin:22px 0 10px}
+  body[data-mode="simple"] .panel{margin-bottom:20px}
+  body[data-mode="simple"] table td,body[data-mode="simple"] table th{padding:8px 11px}
+  nav .navsep{width:1px;align-self:center;height:18px;background:var(--line);margin:0 4px}
   #slateBar{padding:5px 16px;background:#10151c;border-bottom:1px solid var(--line);font-size:12px;color:var(--muted)}
+  #slateBar .pill{display:inline-block;margin-left:10px;padding:0 6px;border-radius:4px;background:#1c232d}
+  #slateBar .ok{color:#7ee787} #slateBar .warn{color:#f0a064}
   #slateBar b{color:var(--text)}
   #slateBar .warn{color:#f0a064}
   /* propfinder-style cheatsheet */
@@ -164,26 +177,30 @@
   <button id="btnValidate" title="Check pitchers, lineups, weather, statcast, odds, game status">Validate</button>
   <button id="btnForce" title="Bypass cache and re-pull everything">Force Refresh</button>
   <button id="btnYesterday" title="Review yesterday's (or the most recent graded) slate — one date only">📊 Yesterday Review</button>
+  <button id="btnMode" title="Toggle Simple / Advanced view">Simple ▾</button>
   <label style="font-size:12px;color:var(--muted)"><input type="checkbox" id="noStat"/> no-statcast</label>
   <div class="spacer"></div>
   <div id="status">—</div>
 </header>
 <nav id="tabs">
   <button data-tab="home" class="active">Today's Best</button>
+  <button data-tab="value">Value</button>
   <button data-tab="model">My Model</button>
   <button data-tab="sheet">Cheat Sheet</button>
-  <button data-tab="cards">Bet Cards</button>
-  <button data-tab="value">Value</button>
+  <span class="navsep"></span>
   <button data-tab="weather">Weather</button>
   <button data-tab="pitchers">Pitchers</button>
   <button data-tab="missed">Missed HR</button>
   <button data-tab="contact">Contact</button>
   <button data-tab="bvp">BvP</button>
-  <button data-tab="slate">Slate</button>
-  <button data-tab="matchups">Matchups</button>
+  <span class="navsep"></span>
   <button data-tab="performance">Performance</button>
   <button data-tab="ledger">Ledger</button>
-  <button data-tab="glossary">Glossary</button>
+  <span class="navsep adv-only"></span>
+  <button data-tab="cards" class="adv-only">Bet Cards</button>
+  <button data-tab="slate" class="adv-only">Slate</button>
+  <button data-tab="matchups" class="adv-only">Matchups</button>
+  <button data-tab="glossary" class="adv-only">Glossary</button>
 </nav>
 <div id="slateBar"></div>
 <main id="view"><div class="empty">Loading…</div></main>
@@ -191,18 +208,31 @@
 
 <script>
 const $ = s => document.querySelector(s);
-let STATE = {date:null, slate:null, tab:"home", sort:{key:"play_score",dir:-1}, filter:""};
+let STATE = {date:null, slate:null, tab:"home", sort:{key:"play_score",dir:-1}, filter:"",
+  mode:(localStorage.getItem("hrpb_mode")||"simple")};
 
 const fmtPct = v => v==null||v===""?"—":(v*100).toFixed(0)+"%";
 const num = v => v==null||v===""?"—":(+v).toFixed(typeof v==="number"&&v<10?1:0);
 const envBadge = t => `<span class="badge b-${(t||'').replace('-','')}">${t||'?'}</span>`;
+const TAG_PRIORITY=["VALUE_ALERT","NUCLEAR_CONTACT","HOT_CONTACT","MISSED_HR",
+  "STRONG_PITCH_MIX_EDGE","PITCH_MIX","GOOD_ENVIRONMENT","PITCHER_TO_ATTACK",
+  "REGRESSION_SPOT","BVP_GOOD_HISTORY","BVP_BAD_HISTORY","LATE_HR","RAW_FALLBACK"];
+function _tagRank(t){const i=TAG_PRIORITY.findIndex(p=>t.includes(p));return i<0?99:i;}
 function tagHtml(tags){
   if(!tags) return "";
-  return String(tags).split("|").filter(Boolean).map(t=>{
-    let c = t.includes("HOT")?"hot": t.includes("MISSED")?"miss":
-            t.includes("PLATOON")?"plat": t.includes("LATE")?"late":"";
+  let arr=String(tags).split("|").filter(Boolean);
+  const simple=(STATE.mode!=="advanced");
+  let extra=0;
+  if(simple && arr.length>3){
+    arr=[...arr].sort((a,b)=>_tagRank(a)-_tagRank(b));
+    extra=arr.length-3; arr=arr.slice(0,3);
+  }
+  const html=arr.map(t=>{
+    let c = t.includes("HOT")||t.includes("NUCLEAR")?"hot": t.includes("MISSED")?"miss":
+            t.includes("PLATOON")?"plat": t.includes("LATE")||t.includes("BVP")?"late":"";
     return `<span class="tag ${c}">${t}</span>`;
   }).join("");
+  return html+(extra>0?`<span class="tag" title="${String(tags).split('|').join(', ')}" style="cursor:help">+${extra} more</span>`:"");
 }
 function valueCls(v){return v==="+EV"?"v-pos":v==="-EV"?"v-neg":"v-fair";}
 
@@ -240,7 +270,23 @@ function updateSlateBar(){
     html+=` <span class="warn">⚠ no slate built for this date</span>`;
   else if(STATE.slate && STATE.slate.date && STATE.slate.date!==STATE.date)
     html+=` <span class="warn">⚠ showing data from ${STATE.slate.date}</span>`;
-  if(STATE.lastGraded) html+=` · Last graded: <b>${STATE.lastGraded}</b>`;
+  html+=` <span class="pill">Today: <b>${STATE.today||"—"}</b></span>`;
+  if(STATE.lastGraded) html+=`<span class="pill">Last graded: <b>${STATE.lastGraded}</b></span>`;
+  // lineups + freshness from the loaded slate
+  const ms=(STATE.slate && STATE.slate.matchups)||[];
+  if(ms.length){
+    const conf=ms.filter(m=>m.lineup_state==="confirmed").length;
+    const proj=ms.filter(m=>m.lineup_state==="projected").length;
+    const lu = conf>0 ? `<span class="ok">${conf} confirmed</span>` : `<span class="warn">${proj} projected</span>`;
+    html+=`<span class="pill">Lineups: ${lu}</span>`;
+    // freshness from pulled_at age
+    const ts=ms.find(m=>m.pulled_at)?.pulled_at;
+    if(ts){ const age=(Date.now()-new Date(ts).getTime())/60000;
+      html+=`<span class="pill">Data: ${age>180?'<span class="warn">stale</span>':'<span class="ok">fresh</span>'}</span>`; }
+  }
+  // odds source for this slate (read-only counts; no API call)
+  const od=STATE.oddsSummary;
+  if(od) html+=`<span class="pill">Odds: ${od}</span>`;
   el.innerHTML=html;
 }
 function setDate(d){ if(!d) return; STATE.date=d; STATE.slate=null; syncDateControls(); loadSlate(); }
@@ -829,7 +875,7 @@ const PERF_WINDOWS=[["today","Today"],["yesterday","Yesterday"],["daily","Daily"
   ["L3","L3"],["L5","L5"],["L7","L7"],["L10","L10"],["L15","L15"],["L20","L20"],["L30","L30"],
   ["season","Season"],["all","All-Time"]];
 function roiTxt(v){return v==null?"—":`<span class="${v>=0?'ev-pos':'ev-neg'}">${v>=0?'+':''}${(v*100).toFixed(0)}%</span>`;}
-function recCells(r){return `<td class="mono">${r.w}-${r.l}</td><td class="mono">${r.hit_rate==null?'—':(r.hit_rate*100).toFixed(0)+'%'}</td>
+function recCells(r){return `<td class="mono">${r.w}W - ${r.l}L</td><td class="mono">${r.hit_rate==null?'—':(r.hit_rate*100).toFixed(0)+'%'}</td>
   <td class="mono">${roiTxt(r.roi)}</td><td class="mono">${r.profit>=0?'+':''}${r.profit}</td>${r.low_sample?'<td class="sp" style="color:#d29922">low n='+r.n+'</td>':'<td></td>'}`;}
 
 async function renderPerformance(){
@@ -853,7 +899,7 @@ async function renderPerformance(){
   const cards=`<div class="banner">
     <div class="stat"><div class="n">${roiTxt(o.roi)}</div><div class="l">overall ROI</div></div>
     <div class="stat"><div class="n">${o.hit_rate==null?'—':(o.hit_rate*100).toFixed(0)+'%'}</div><div class="l">hit rate (${o.n})</div></div>`
-    +["HR","TB","HRR","Hits"].map(b=>`<div class="stat"><div class="n">${bt[b]?roiTxt(bt[b].roi):'—'}</div><div class="l">${b} ROI ${bt[b]?'('+bt[b].w+'-'+bt[b].l+')':''}</div></div>`).join("")
+    +["HR","TB","HRR","Hits"].map(b=>`<div class="stat"><div class="n">${bt[b]?roiTxt(bt[b].roi):'—'}</div><div class="l">${b} ${bt[b]?bt[b].w+'W-'+bt[b].l+'L':''}</div></div>`).join("")
     +`</div>`;
   const lowWarn=o.low_sample?`<div class="note" style="border-left-color:#d29922">⚠️ Low sample (${o.n} bets) — don't trust these numbers yet.</div>`:"";
   const richNote=`<div class="sp" style="color:var(--muted);margin-bottom:10px">${p.n} graded bets · ${p.rich_n} with rich snapshot (signal/grade/cluster breakdowns need the rich snapshot — they populate for slates run after the v2 upgrade).</div>`;
@@ -867,7 +913,7 @@ async function renderPerformance(){
   const sig=p.by_signal||{};
   const sigTbl=Object.keys(sig).length?`<h3>Signal / Tag Performance</h3><div class="panel"><table><thead><tr>
     <th>Signal</th><th>Rec</th><th>Hit</th><th>ROI</th><th>Best bet</th><th>Worst bet</th></tr></thead><tbody>`+
-    Object.entries(sig).map(([t,r])=>`<tr><td><b>${t}</b></td><td class="mono">${r.w}-${r.l}</td>
+    Object.entries(sig).map(([t,r])=>`<tr><td><b>${t}</b></td><td class="mono">${r.w}W - ${r.l}L</td>
       <td class="mono">${r.hit_rate==null?'—':(r.hit_rate*100).toFixed(0)+'%'}</td><td class="mono">${roiTxt(r.roi)}</td>
       <td>${r.best_bet||'—'}</td><td>${r.worst_bet||'—'}</td></tr>`).join("")+`</tbody></table></div>`
     :`<h3>Signal / Tag Performance</h3><div class="sp" style="color:var(--muted)">no rich snapshots in range yet</div>`;
@@ -940,6 +986,10 @@ async function renderValue(){
   catch(e){ $("#view").innerHTML=`<div class="empty">No data. Click <b>Run</b>.</div>`; return; }
   if(!v.exists){ $("#view").innerHTML=`<div class="empty">No slate for <b>${STATE.date}</b>. Click <b>Run</b>.</div>`; return; }
   const apiRows=(v.rows||[]).filter(r=>r.source==="api").length;
+  const manRows=(v.rows||[]).filter(r=>r.source==="manual").length;
+  STATE.oddsSummary = apiRows>0 ? `<span class="ok">API (${apiRows})</span>`
+    : manRows>0 ? `<span class="ok">manual (${manRows})</span>` : `<span class="warn">none</span>`;
+  if($("#slateBar")) updateSlateBar();
   const statusBar=`<div class="read" style="border-left-color:#388bfd">
     <div class="rg"><b>Odds API:</b>
       <button id="btnApiOdds" class="primary" style="padding:4px 10px">Refresh API Odds</button>
@@ -1173,8 +1223,18 @@ $("#btnGrade").onclick=()=>trigger("grade");
 $("#btnForce").onclick=()=>trigger("force-refresh");
 $("#btnValidate").onclick=()=>validate();
 $("#btnYesterday").onclick=()=>{ STATE.tab="performance"; STATE.perfWindow="yesterday"; setTab(); };
+function applyMode(){
+  document.body.dataset.mode=STATE.mode;
+  $("#btnMode").textContent=(STATE.mode==="advanced"?"Advanced ▾":"Simple ▾");
+}
+$("#btnMode").onclick=()=>{
+  STATE.mode=(STATE.mode==="advanced"?"simple":"advanced");
+  localStorage.setItem("hrpb_mode",STATE.mode); applyMode();
+  if(STATE.mode==="simple" && ["cards","slate","matchups","glossary"].includes(STATE.tab)) STATE.tab="home";
+  setTab();
+};
 
-(async()=>{ initTips(); await loadGlossary(); await loadDates(); await loadSlate();
+(async()=>{ initTips(); applyMode(); await loadGlossary(); await loadDates(); await loadSlate();
   attachHeaderTips(); setStatus("ok","ready"); })();
 </script>
 </body>
