@@ -69,6 +69,9 @@
   /* Simple / Advanced mode */
   #btnMode{background:#1f6feb22;border-color:#388bfd}
   body[data-mode="simple"] .adv-only{display:none!important}
+  body[data-mode="simple"] .col-adv{display:none}
+  tr.drow>td{background:#10151c;border-bottom:2px solid var(--accent)}
+  .dbtn{background:var(--panel2);border:1px solid var(--line);border-radius:5px;padding:2px 8px;font-size:11px;cursor:pointer}
   body[data-mode="simple"] main{line-height:1.5}
   body[data-mode="simple"] .best-grid{gap:14px}
   body[data-mode="simple"] .bcard{padding:16px}
@@ -234,6 +237,14 @@ function tagHtml(tags){
   }).join("");
   return html+(extra>0?`<span class="tag" title="${String(tags).split('|').join(', ')}" style="cursor:help">+${extra} more</span>`:"");
 }
+function tagHtmlFull(tags){
+  if(!tags) return "—";
+  return String(tags).split("|").filter(Boolean).map(t=>{
+    let c = t.includes("HOT")||t.includes("NUCLEAR")?"hot": t.includes("MISSED")?"miss":
+            t.includes("PLATOON")?"plat": t.includes("LATE")||t.includes("BVP")?"late":"";
+    return `<span class="tag ${c}">${t}</span>`;
+  }).join("")||"—";
+}
 function valueCls(v){return v==="+EV"?"v-pos":v==="-EV"?"v-neg":"v-fair";}
 
 async function api(path, opts){const r=await fetch(path,opts); if(!r.ok) throw new Error(await r.text()); return r.json();}
@@ -369,9 +380,9 @@ function heat(v,lo,hi){
   const t=Math.max(0,Math.min(1,(v-lo)/(hi-lo)));
   return `hsl(${Math.round(t*125)},62%,${38+ (1-Math.abs(t-.5))*6|0}%)`;
 }
-function heatCell(v,lo,hi,fmt){
-  if(v==null||v===""||isNaN(v))return `<td class="heat dim">—</td>`;
-  const bg=heat(+v,lo,hi); return `<td class="heat" style="background:${bg}">${fmt(+v)}</td>`;
+function heatCell(v,lo,hi,fmt,cls=""){
+  if(v==null||v===""||isNaN(v))return `<td class="heat dim ${cls}">—</td>`;
+  const bg=heat(+v,lo,hi); return `<td class="heat ${cls}" style="background:${bg}">${fmt(+v)}</td>`;
 }
 const PROJ_BOUNDS={HR:[.05,.30],TB:[.35,.72]};
 function projOf(m,bet){return bet==="HR"?m.model_hr_prob:bet==="TB"?m.model_tb_prob:null;}
@@ -395,7 +406,7 @@ function renderSheet(){
   const arrow=k=>STATE.sheetSort.key===k?(dir<0?" ▼":" ▲"):"";
   const SH=[["proj","Proj"],["pm","B% vs PM"],["hand","vs Hand"],["l30","L30"],["play","Play"]];
   const head=`<tr><th class="rk">#</th><th>Player</th><th>Matchup</th><th>Spot</th><th>Prop</th>`
-    + SH.map(([k,l])=>`<th data-sk="${k}" style="text-align:center">${l}${arrow(k)}</th>`).join("")
+    + SH.map(([k,l])=>`<th data-sk="${k}" class="${['pm','hand','l30'].includes(k)?'col-adv':''}" style="text-align:center">${l}${arrow(k)}</th>`).join("")
     + `<th>Plt</th><th>Env</th><th>T</th></tr>`;
   const body=rows.map((r,i)=>{
     const m=r.m, b=m.batter_id;
@@ -410,9 +421,9 @@ function renderSheet(){
       <td class="mono">${m.order??"—"}</td>
       <td><span class="prop ${r.bet}">${r.line}</span></td>
       ${heatCell(r.proj,pb[0],pb[1],v=>(v*100).toFixed(0)+"%")}
-      ${heatCell(m.barrel_vs_pm,5,20,v=>v.toFixed(1))}
-      ${heatCell(m.barrel_vs_hand,5,20,v=>v.toFixed(1))}
-      ${heatCell(m.l30_avg,.2,.35,v=>v.toFixed(3).replace(/^0/,''))}
+      ${heatCell(m.barrel_vs_pm,5,20,v=>v.toFixed(1),"col-adv")}
+      ${heatCell(m.barrel_vs_hand,5,20,v=>v.toFixed(1),"col-adv")}
+      ${heatCell(m.l30_avg,.2,.35,v=>v.toFixed(3).replace(/^0/,''),"col-adv")}
       <td class="mono" style="text-align:center">${m.play_score??"—"}</td>
       <td style="text-align:center">${plt}</td>
       <td>${envBadge(m.env_tier)}</td>
@@ -459,7 +470,22 @@ const COLS=[
   ["model_hr_prob","HR%"],["model_tb_prob","TB%"],["play_score","Play"],["tier","T"],
   ["bets","Bets"],["value","Val"],["tags","Tags"]
 ];
+const SIMPLE_MATCHUP=[
+  ["batter","Player"],["team","Tm"],["opp_team","Opp"],["opp_sp","SP"],
+  ["bets","Best play"],["model_hr_prob","HR%"],["model_tb_prob","TB%"],
+  ["play_score","Play"],["value","Val"],["tags","Tags"]
+];
+function matchupDetail(m){
+  const cell=(l,v)=>`<div><span class="bn" style="color:var(--muted)">${l}</span> <b>${v??"—"}</b></div>`;
+  return `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:6px 18px;padding:8px 4px;font-size:12px">
+    ${cell("Platoon",m.platoon)}${cell("Environment",(m.env_tier||"")+" ("+(m.env_score??"—")+")")}
+    ${cell("SP weakness",m.pitcher_score)}${cell("B% vs PM",m.barrel_vs_pm)}${cell("B% vs hand",m.barrel_vs_hand)}
+    ${cell("HR%",fmtPct(m.model_hr_prob))}${cell("TB%",fmtPct(m.model_tb_prob))}${cell("L30",m.l30_avg)}
+    ${cell("Tier",m.tier)}${cell("Lineup",m.lineup_state)}
+    <div style="grid-column:1/-1">All tags: ${tagHtmlFull(m.tags)}</div></div>`;
+}
 function renderMatchups(){
+  const simple=(STATE.mode!=="advanced");
   let ms=[...STATE.slate.matchups];
   const f=STATE.filter.toLowerCase();
   if(f) ms=ms.filter(m=>JSON.stringify(m).toLowerCase().includes(f));
@@ -467,8 +493,10 @@ function renderMatchups(){
   ms.sort((a,b)=>{const x=a[key],y=b[key];
     if(x==null)return 1; if(y==null)return -1;
     return (x>y?1:x<y?-1:0)*dir;});
-  const head=COLS.map(([k,l])=>`<th data-k="${k}">${l}${STATE.sort.key===k?(dir<0?" ▼":" ▲"):""}</th>`).join("");
-  const body=ms.map(m=>"<tr>"+COLS.map(([k])=>{
+  const cols = simple ? SIMPLE_MATCHUP : COLS;
+  const head=cols.map(([k,l])=>`<th data-k="${k}">${l}${STATE.sort.key===k?(dir<0?" ▼":" ▲"):""}</th>`).join("")
+    + (simple?"<th></th>":"");
+  const cell=(m,k)=>{
     let v=m[k];
     if(k==="env_tier")return `<td>${envBadge(v)}</td>`;
     if(k==="value")return `<td class="${valueCls(v)}">${v||"—"}</td>`;
@@ -478,10 +506,16 @@ function renderMatchups(){
     if(["pitcher_score","barrel_vs_pm","barrel_vs_hand","play_score","tier"].includes(k))
       return `<td class="mono">${v??"—"}</td>`;
     return `<td>${v??"—"}</td>`;
-  }).join("")+"</tr>").join("");
+  };
+  const body=ms.map(m=>{
+    const row="<tr>"+cols.map(([k])=>cell(m,k)).join("")
+      +(simple?`<td><button class="dbtn">details ▾</button></td>`:"")+"</tr>";
+    const det=simple?`<tr class="drow" style="display:none"><td colspan="${cols.length+1}">${matchupDetail(m)}</td></tr>`:"";
+    return row+det;
+  }).join("");
   $("#view").innerHTML=`<div class="filters">
       <input id="mFilter" placeholder="filter… (name, team, tag)" value="${STATE.filter}" style="width:260px"/>
-      <span class="sp" style="color:var(--muted);align-self:center">${ms.length} rows</span></div>
+      <span class="sp" style="color:var(--muted);align-self:center">${ms.length} rows · ${simple?'simple':'advanced'}</span></div>
     <div class="panel"><table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
   $("#mFilter").oninput=e=>{STATE.filter=e.target.value; const p=e.target.selectionStart; renderMatchups();
      const el=$("#mFilter"); el.focus(); el.setSelectionRange(p,p);};
@@ -500,7 +534,7 @@ async function renderLedger(){
     const roi=s.roi==null?"—":(s.roi*100>=0?"+":"")+(s.roi*100).toFixed(0)+"%";
     const hit=s.hit_rate==null?"—":(s.hit_rate*100).toFixed(0)+"%";
     cards+=`<div class="stat"><div class="l">${bet}</div><div class="n">${hit}</div>
-      <div class="l">${s.w}-${s.l} · ROI ${roi}</div></div>`;
+      <div class="l">${s.w}W - ${s.l}L · ROI ${roi}</div></div>`;
   }
   cards+=`</div>`;
   if(!l.count){ $("#view").innerHTML=`<div class="empty">No graded results yet.<br/>Run a past date then click <b>Grade</b>.</div>`; return; }
@@ -511,9 +545,15 @@ async function renderLedger(){
     <td class="mono">${r.got??"—"}/${r.need}</td>
     <td class="${won?'v-pos':'v-neg'}">${won?'WIN':'loss'}</td>
     <td class="mono">${r.profit??""}</td></tr>`;}).join("");
-  $("#view").innerHTML=cards+`<div class="panel"><table><thead><tr>
+  const collapsed=(STATE.mode!=="advanced");   // Simple: collapse full rows by default
+  $("#view").innerHTML=cards
+    +`<button id="ledToggle" style="margin:6px 0">${collapsed?`Show full ledger rows (${l.count}) ▾`:`Hide full ledger rows ▴`}</button>
+    <div id="ledRows" style="display:${collapsed?'none':'block'}"><div class="panel"><table><thead><tr>
     <th>Date</th><th>Player</th><th>Tm</th><th>Bet</th><th>Line</th><th>Got/Need</th><th>Result</th><th>P/L</th>
-    </tr></thead><tbody>${rows}</tbody></table></div>`;
+    </tr></thead><tbody>${rows}</tbody></table></div></div>`;
+  $("#ledToggle").onclick=()=>{const d=$("#ledRows");const open=d.style.display!=="none";
+    d.style.display=open?"none":"block";
+    $("#ledToggle").textContent=open?`Show full ledger rows (${l.count}) ▾`:`Hide full ledger rows ▴`;};
 }
 
 // --- Today's Best + My Model (Phase 12/13/18) ---
@@ -538,7 +578,11 @@ function featCard(label, it){
       <div class="gr"><span class="gpill ${gradeCls(it.grade)}">${it.grade}</span></div></div>
     <div class="who">${img}<div><div class="nm">${name}</div><div class="sub">${sub}</div>
       <div>${starsHtml(it.stars)}</div></div></div>
-    ${whyList(it.reasons)}${flagList(it.red_flags)}</div>`;
+    ${whyList((it.reasons||[]).slice(0,3))}${flagList((it.red_flags||[]).slice(0,2))}
+    ${((it.reasons||[]).length>3||(it.red_flags||[]).length>2)?
+      `<button class="dbtn" style="margin-top:6px;font-size:11px">view details ▾</button>
+       <div class="drow" style="display:none;margin-top:6px">${whyList(it.reasons)}${flagList(it.red_flags)}</div>`:""}
+    </div>`;
 }
 
 async function renderHome(){
@@ -799,7 +843,9 @@ async function renderBvP(){
     rows.map(r=>{
       const sampCls={STRONG:'g-A',USEFUL:'g-B',SMALL:'g-C',TOO_SMALL:'g-D'}[r.sample_size]||'g-C';
       const gradeTxt=(r.grade||'—')+(r.grade_capped?' *':'');
-      const histTxt=bvpBadge(r.edge_label)+(r.small_sample&&r.edge_label!=='TOO_SMALL_SAMPLE'?' <span class="tag" style="color:#e3b341;border-color:#5a4400">SMALL SAMPLE</span>':'');
+      const histTxt=bvpBadge(r.edge_label)
+        + (r.sample_size==='TOO_SMALL' ? ' <span class="tag" style="color:#f08a8a;border-color:#5a1d1d">TOO SMALL — context only</span>'
+           : r.small_sample ? ' <span class="tag" style="color:#e3b341;border-color:#5a4400">SMALL SAMPLE — use cautiously</span>' : '');
       return `<tr><td><b>${r.batter}</b></td><td>${r.team}</td><td>${r.opp_sp||r.opp_team}</td>
       <td class="mono">${r.pa??0}</td>
       <td><span class="gpill ${sampCls}">${r.sample_size||'—'}</span></td>
@@ -1234,6 +1280,15 @@ $("#btnMode").onclick=()=>{
   setTab();
 };
 
+// reusable expandable-row: any ".dbtn" toggles the next ".drow" detail row
+$("#view").addEventListener("click", e=>{
+  const b=e.target.closest(".dbtn"); if(!b) return;
+  const host=b.closest("tr")||b; const d=host.nextElementSibling;
+  if(d&&d.classList.contains("drow")){
+    const open=d.style.display!=="none"; d.style.display=open?"none":"";
+    b.textContent=b.textContent.replace(/[▾▴]/,open?"▾":"▴");
+  }
+});
 (async()=>{ initTips(); applyMode(); await loadGlossary(); await loadDates(); await loadSlate();
   attachHeaderTips(); setStatus("ok","ready"); })();
 </script>
