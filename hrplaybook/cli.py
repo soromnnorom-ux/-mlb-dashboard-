@@ -551,7 +551,8 @@ def odds_refresh(
     """Explicitly pull live odds from The Odds API into out/<date>/api_odds.json."""
     import csv as _csv
 
-    from . import odds_api
+    from . import odds_api, odds_keys
+    odds_keys.load_dotenv()        # pick up keys from a git-ignored .env
     date = resolve_date(date)
     cfg = load_config()
     client = _make_client(cfg, offline=False)
