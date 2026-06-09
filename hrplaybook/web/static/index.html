@@ -659,10 +659,11 @@ async function renderModel(){
       ${cells}<td>${envBadge(p.env_tier)}</td></tr>
       <tr class="mdetail" data-d="${i}" style="display:none"><td colspan="8">
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;padding:8px 4px">
-        ${["HR","TB","HRR","Hits"].map(x=>{const vr=vmap[p.batter+"||"+x];
-          const vline=vr?`<div class="sub" style="margin-top:4px">💰 ${oddsFmt(vr.odds)} · edge ${edgeFmt(vr.edge)} · <span class="gpill ${valCls(vr.value)}">${vr.value}</span></div>`
-            :`<div class="sub" style="margin-top:4px;color:var(--muted)">Value unknown — odds not entered</div>`;
-          return `<div><div class="lbl" style="font-size:11px;color:var(--muted);text-transform:uppercase;margin-bottom:4px">${x} = ${p.scores[x].score} <span class="gpill ${gradeCls(p.scores[x].grade)}">${p.scores[x].grade}</span></div>${bdBars(p.scores[x].breakdown)}${vline}</div>`;}).join("")}
+        ${["HR","TB","HRR","Hits"].map(x=>{const vr=vmap[p.batter+"||"+x];const pr=(p.probs||{})[x]||{};
+          const probLine=`<div class="sub" style="margin-top:4px">Raw prob ${pctFmt(pr.raw)} → <b>Cal ${pctFmt(pr.calibrated)}</b>${pr.warning&&pr.warning!=="NO_CALIBRATION_DATA"?` <span class="sp" style="color:#d29922">[${pr.warning}]</span>`:""}</div>`;
+          const vline=vr?`<div class="sub" style="margin-top:2px">💰 ${oddsFmt(vr.odds)} · edge ${edgeFmt(vr.edge)} · <span class="gpill ${valCls(vr.value)}">${vr.value}</span></div>`
+            :`<div class="sub" style="margin-top:2px;color:var(--muted)">Value unknown — odds not entered</div>`;
+          return `<div><div class="lbl" style="font-size:11px;color:var(--muted);text-transform:uppercase;margin-bottom:4px">${x} = ${p.scores[x].score} <span class="gpill ${gradeCls(p.scores[x].grade)}">${p.scores[x].grade}</span></div>${bdBars(p.scores[x].breakdown)}${probLine}${vline}</div>`;}).join("")}
         </div></td></tr>`;
   }).join("");
   $("#view").innerHTML=`<div class="chips">${chips}</div>
@@ -731,10 +732,21 @@ async function renderPerformance(){
     :`<div class="sp" style="color:var(--muted)">no rich snapshots in range yet</div>`);
   const insights=`<h3>Auto Insights</h3><div class="read"><div class="rg">`+
     (p.insights||[]).map(i=>`• ${mdBold(i)}`).join("<br/>")+`</div></div>`;
+  // before vs after calibration
+  const cs=p.calibration_status||[];
+  const csTbl=cs.length?`<h3>Before vs After Calibration <span class="sp" style="color:var(--muted)">(error = |avg prob − actual|)</span></h3>
+    <div class="panel"><table><thead><tr><th>Bet</th><th>Raw avg</th><th>Calibrated avg</th><th>Actual</th>
+    <th>Raw err</th><th>Cal err</th><th>Improvement</th></tr></thead><tbody>`+
+    cs.map(c=>`<tr><td><b>${c.bet}</b> <span class="sp">n=${c.n}</span></td>
+      <td class="mono">${(c.raw_avg*100).toFixed(0)}%</td><td class="mono">${(c.calibrated_avg*100).toFixed(0)}%</td>
+      <td class="mono">${(c.actual*100).toFixed(0)}%</td><td class="mono">${(c.raw_error*100).toFixed(1)}</td>
+      <td class="mono">${(c.calibrated_error*100).toFixed(1)}</td>
+      <td class="mono ${c.improvement>=0?'ev-pos':'ev-neg'}">${c.improvement>=0?'+':''}${(c.improvement*100).toFixed(1)}</td></tr>`).join("")
+    +`</tbody></table></div>`:"";
 
   $("#view").innerHTML=`<div class="chips">${chips}</div>`+lowWarn+cards+richNote
     +tbl("Bet Type Performance",bt,"Bet")
-    +calTbl+insights+vaTbl
+    +calTbl+csTbl+insights+vaTbl
     +tbl("Grade Performance",p.by_grade,"Grade")
     +sigTbl+pmTbl
     +tbl("Contact Cluster Performance",Object.fromEntries(Object.entries(p.by_cluster||{}).map(([k,v])=>[k,v._all])),"Cluster")
@@ -765,7 +777,8 @@ async function renderValue(){
       ${os.active_key_name?`· active key <b>${os.active_key_name}</b>`:''}
       ${os.configured&&os.configured.length?`· configured: ${os.configured.join(', ')}`:''}
       ${oc&&os.keys?(()=>{const k=os.keys.find(x=>x.valid&&x.quota_remaining!=null);return k?` · quota ${k.quota_remaining}`:'';})():''}
-      ${!oc?`<span class="sp"> · manual odds entry below still works</span>`:''}</div></div>`;
+      ${!oc?`<span class="sp"> · manual odds entry below still works</span>`:''}
+      <br/><span class="sp">Value uses the <b>calibrated</b> probability (model was overconfident historically); raw shown for reference.</span></div></div>`;
   // best value cards
   const bv=v.best_value||{};
   const cards=["HR","TB","HRR","Hits"].map(mk=>{const r=bv[mk];
@@ -774,7 +787,7 @@ async function renderValue(){
       <div class="big"><span class="gpill ${valCls(r.value)}">${r.value}</span></div>
       <div class="nm" style="margin-top:6px">${r.player}</div>
       <div class="sub">${r.team} · ${oddsFmt(r.odds)} ${r.sportsbook||''} · edge ${edgeFmt(r.edge)}</div>
-      <div class="sub">model ${pctFmt(r.model_prob)} vs implied ${pctFmt(r.implied_prob)}</div></div>`;}).join("");
+      <div class="sub">cal ${pctFmt(r.model_prob)} <span class="sp">(raw ${pctFmt(r.raw_model_prob)})</span> vs implied ${pctFmt(r.implied_prob)}</div></div>`;}).join("");
   const ov=v.best_overall?`<div class="bcard"><div class="lbl">Best Overall Value</div>
       <div class="big"><span class="gpill ${valCls(v.best_overall.value)}">${v.best_overall.value}</span></div>
       <div class="nm" style="margin-top:6px">${v.best_overall.player}</div>
@@ -815,10 +828,10 @@ async function renderValue(){
       <td>${r.bet_type}</td><td class="mono">${r.model_score??'—'}</td><td class="mono">${pctFmt(r.model_prob)}</td>
       <td class="mono">${oddsFmt(r.odds)}</td><td><span class="gpill ${valCls(r.value)}">${r.value}</span></td></tr>`).join("")+`</tbody></table></div>`;
   const lbVal=`<h3>Best Value Plays <span class="sp" style="color:var(--muted)">(most mispriced)</span></h3>`+
-    ((v.leaderboard_value||[]).length?`<div class="panel"><table><thead><tr><th>#</th><th>Player</th><th>Bet</th><th>Odds</th><th>Model %</th><th>Implied %</th><th>Edge</th><th>Value</th></tr></thead><tbody>`+
+    ((v.leaderboard_value||[]).length?`<div class="panel"><table><thead><tr><th>#</th><th>Player</th><th>Bet</th><th>Odds</th><th>Cal % (raw)</th><th>Implied %</th><th>Edge</th><th>Value</th></tr></thead><tbody>`+
     v.leaderboard_value.map((r,i)=>`<tr><td class="rk">${i+1}</td><td><b>${r.player}</b> <span class="sp">${r.team}</span></td>
       <td>${r.bet_type}</td><td class="mono">${oddsFmt(r.odds)} <span class="sp">${r.sportsbook||''}</span></td>
-      <td class="mono">${pctFmt(r.model_prob)}</td><td class="mono">${pctFmt(r.implied_prob)}</td>
+      <td class="mono">${pctFmt(r.model_prob)} <span class="sp">(${pctFmt(r.raw_model_prob)})</span></td><td class="mono">${pctFmt(r.implied_prob)}</td>
       <td class="mono">${edgeFmt(r.edge)}</td><td><span class="gpill ${valCls(r.value)}">${r.value}</span></td></tr>`).join("")+`</tbody></table></div>`
     :`<div class="sp" style="color:var(--muted)">no priced plays — enter odds above</div>`);
 

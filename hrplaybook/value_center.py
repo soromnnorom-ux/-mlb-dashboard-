@@ -132,8 +132,15 @@ def _best_price(entries: List[dict]) -> Optional[dict]:
 # --------------------------------------------------------------------------- #
 # Market vs Model
 # --------------------------------------------------------------------------- #
-def _row(m: dict, market: str, entries: List[dict], now) -> dict:
-    mp = model_prob(m, market)
+def _row(m: dict, market: str, entries: List[dict], now, tables=None) -> dict:
+    raw = model_prob(m, market)
+    # calibrated probability drives value/edge; raw is preserved for display
+    if tables is not None:
+        from . import calibration
+        cal = calibration.calibrate(raw, market, tables)
+        mp, cal_warn, cal_conf = cal["calibrated"], cal["warning"], cal["confidence"]
+    else:
+        mp, cal_warn, cal_conf = raw, "NO_CALIBRATION_DATA", "none"
     best = _best_price(entries) if entries else None
     odds = best["odds"] if best else None
     imp = implied_prob(odds)
@@ -143,7 +150,10 @@ def _row(m: dict, market: str, entries: List[dict], now) -> dict:
         "opp_team": m.get("opp_team"), "opp_sp": m.get("opp_sp"),
         "bet_type": market,
         "sportsbook": best.get("sportsbook") if best else None,
-        "odds": odds, "implied_prob": imp, "model_prob": mp,
+        "odds": odds, "implied_prob": imp,
+        "model_prob": mp,                 # calibrated (drives value)
+        "raw_model_prob": raw,
+        "calibration_warning": cal_warn, "calibration_confidence": cal_conf,
         "edge": edge, "value": value_grade(edge),
         "source": best.get("source") if best else "unknown",
         "last_updated": best.get("timestamp") if best else None,
@@ -159,7 +169,8 @@ def _row(m: dict, market: str, entries: List[dict], now) -> dict:
 
 def market_vs_model(matchups: List[dict], manual: List[dict],
                     api: Optional[List[dict]] = None,
-                    now: Optional[_dt.datetime] = None) -> dict:
+                    now: Optional[_dt.datetime] = None,
+                    tables: Optional[dict] = None) -> dict:
     from .featured import markets_of
     idx = build_odds_index(manual, api)
     rows: List[dict] = []
@@ -172,7 +183,7 @@ def market_vs_model(matchups: List[dict], manual: List[dict],
             if market not in mk_set:
                 continue
             entries = idx.get((pnorm, market), [])
-            row = _row(m, market, entries, now)
+            row = _row(m, market, entries, now, tables)
             if row["odds"] is None and row["model_prob"] is None:
                 continue          # nothing to show
             rows.append(row)

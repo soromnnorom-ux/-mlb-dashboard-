@@ -487,6 +487,22 @@ def schedule_install(
 
 
 @app.command()
+def calibrate():
+    """(Re)build empirical probability-calibration tables from the result ledger."""
+    from . import calibration
+    tables = calibration.save_tables("out")
+    if not tables:
+        typer.echo("No graded history yet (out/_ledger.csv empty) — nothing to calibrate.")
+        raise typer.Exit(0)
+    for bet, t in sorted(tables.items()):
+        typer.echo(f"{bet}: baseline {t['_baseline']} over {t['_n']} bets")
+        for bk, e in t["buckets"].items():
+            flag = "  ⚠ low-sample" if e["n"] < calibration.MIN_SAMPLE else ""
+            typer.echo(f"   {bk:>6}: n={e['n']:5d}  raw {e['avg_raw']:.2f} -> actual {e['actual']:.2f}{flag}")
+    typer.echo("Wrote out/_calibration.json")
+
+
+@app.command()
 def serve(
     host: str = typer.Option("127.0.0.1", help="bind host"),
     port: int = typer.Option(8000, help="bind port"),

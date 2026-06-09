@@ -205,12 +205,13 @@ def api_home(date: str):
         return {"exists": False, "date": date}
     g, m = s["games"], s["matchups"]
     pitchers = _df_records(_out_dir() / date / "pitchers.csv")
-    from .. import manual_odds, performance, value_center
+    from .. import calibration, manual_odds, performance, value_center
     wb = featured.weather_board(g)
     missed = featured.missed_hr_candidates(m)
     clusters = featured.contact_clusters(m)
     pa = featured.pitcher_attack_table(pitchers, g)
-    val = value_center.market_vs_model(m, manual_odds.load(date), api=None)
+    val = value_center.market_vs_model(m, manual_odds.load(date), api=None,
+                                       tables=calibration.load_tables(_out_dir()))
     return {
         "exists": True, "date": date,
         "read": featured.slate_read(g, m, pitchers),
@@ -346,8 +347,10 @@ def api_value(date: str):
     s = _slate(date)
     if not s["exists"]:
         return {"exists": False, "date": date}
+    from .. import calibration
     manual = manual_odds.load(date)
-    res = value_center.market_vs_model(s["matchups"], manual, api=None)
+    res = value_center.market_vs_model(s["matchups"], manual, api=None,
+                                       tables=calibration.load_tables(_out_dir()))
     return {"exists": True, "date": date, **res}
 
 
@@ -361,18 +364,30 @@ def api_model(date: str):
     s = _slate(date)
     if not s["exists"]:
         return {"exists": False, "date": date, "players": []}
+    from .. import calibration, value_center
+    tables = calibration.load_tables(_out_dir())
     players = []
     for m in s["matchups"]:
         sc = featured.market_scores(m)
+        probs = {}
+        for mk in featured.MARKETS:
+            raw = value_center.model_prob(m, mk)
+            probs[mk] = calibration.calibrate(raw, mk, tables)
         players.append({
             "batter": m.get("batter"), "batter_id": m.get("batter_id"),
             "team": m.get("team"), "opp_team": m.get("opp_team"),
             "opp_sp": m.get("opp_sp"), "order": m.get("order"),
             "platoon": m.get("platoon"), "env_tier": m.get("env_tier"),
             "lineup_state": m.get("lineup_state"), "tags": m.get("tags"),
-            "scores": sc,
+            "scores": sc, "probs": probs,
         })
     return {"exists": True, "date": date, "players": players}
+
+
+@app.get("/api/calibration")
+def api_calibration():
+    from .. import calibration
+    return {"tables": calibration.load_tables(_out_dir())}
 
 
 @app.post("/api/run")

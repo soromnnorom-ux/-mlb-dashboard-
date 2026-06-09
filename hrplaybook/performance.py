@@ -324,8 +324,11 @@ def report(out_root: str | Path = "out", window: str = "all",
     start, end = window_range(window, today)
     rows = collect(out_root, start, end)
     rich_n = sum(1 for r in rows if r["rich"])
+    from . import calibration as calib
+    cal_status = calib.calibration_status(rows, calib.load_tables(out_root))
     return {
         "window": window, "n": len(rows), "rich_n": rich_n,
+        "calibration_status": cal_status,
         "overall": record(rows),
         "by_bet_type": by_bet_type(rows),
         "by_grade": by_grade(rows),

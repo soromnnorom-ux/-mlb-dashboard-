@@ -47,6 +47,17 @@ def write_picks(outdir: str | Path, matchups: List[Matchup], date: str) -> str:
             "missed_hr": b.missed_hr,
             "tags": list(dict.fromkeys(list(m.tags) + list(b.tags))),
         })
+        # persist raw probs for ALL markets so HRR/Hits can calibrate over time
+        # (HR/TB come from the model; HRR/Hits are score-derived in value_center).
+        from .. import value_center
+        pk = picks[-1]
+        mp = dict(pk["model_prob"])
+        for mk in ("HRR", "Hits"):
+            if mk not in mp:
+                rp = value_center.model_prob(pk, mk)
+                if rp is not None:
+                    mp[mk] = rp
+        pk["model_prob"] = mp
     path = outdir / "picks.json"
     path.write_text(json.dumps(picks, indent=2))
     return str(path)
