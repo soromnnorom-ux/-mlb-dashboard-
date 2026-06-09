@@ -148,19 +148,28 @@ def enrich_batter(
     last5 = _recent_dates(batted_balls, 5)
     batter.ev100_l5g = sum(1 for b in batted_balls
                            if b["game_date"] in last5 and b["launch_speed"] >= 100)
+    last7 = _recent_dates(batted_balls, 7)
     ev95_l5 = sum(1 for b in batted_balls
                   if b["game_date"] in last5 and b["launch_speed"] >= 95)
-    ev105_l5 = sum(1 for b in batted_balls
-                   if b["game_date"] in last5 and b["launch_speed"] >= 105)
+    ev100_l5 = batter.ev100_l5g
+    ev105_l7 = sum(1 for b in batted_balls
+                   if b["game_date"] in last7 and b["launch_speed"] >= 105)
+    ev110_l7 = sum(1 for b in batted_balls
+                   if b["game_date"] in last7 and b["launch_speed"] >= 110)
+    batter.ev105_l7g = ev105_l7
+    batter.ev110_l7g = ev110_l7
     recent = _recent_dates(batted_balls, hc.games)
     hard = sum(1 for b in batted_balls
                if b["game_date"] in recent and b["launch_speed"] >= hc.ev)
     if hard >= hc.count:
         batter.hot_contact = True
-    # cluster label -- based on RECENT form (last 5 games), not 30-day totals
-    if batter.ev100_l5g >= 6 or ev105_l5 >= 3:
+    # cluster label -- RECENT form. Thresholds calibrated against the live slate
+    # so NUCLEAR stays ~top 8-12% (truly elite spikes), not a quarter of hitters.
+    # NUCLEAR: 2+ balls 110+ EV (l7), or 5+ balls 105+ EV (l7).
+    # HOT (strong): 4+ balls 100+ EV (l5), or 3+ balls 105+ EV (l7).
+    if ev110_l7 >= 2 or ev105_l7 >= 5:
         label = "NUCLEAR"
-    elif hard >= hc.count or batter.ev100_l5g >= 3:
+    elif ev100_l5 >= 4 or ev105_l7 >= 3:
         label = "HOT"
     elif batter.recent_window_used and len(last5) >= 3 and ev95_l5 == 0:
         label = "COLD"

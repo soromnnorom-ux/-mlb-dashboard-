@@ -159,6 +159,8 @@ def _matchup_rows(matchups: List[Matchup]) -> List[dict]:
             "ev100_w": b.ev100_w,
             "ev105_w": b.ev105_w,
             "ev100_l5g": b.ev100_l5g,
+            "ev105_l7g": b.ev105_l7g,
+            "ev110_l7g": b.ev110_l7g,
             "batter_score": m.batter_score,
             "edge_bonus": m.edge_bonus,
             "play_score": m.play_score,

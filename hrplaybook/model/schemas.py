@@ -110,6 +110,8 @@ class Batter:
     ev100_w: int = 0
     ev105_w: int = 0
     ev100_l5g: int = 0       # 100+ EV in last 5 games
+    ev105_l7g: int = 0       # 105+ EV in last 7 games
+    ev110_l7g: int = 0       # 110+ EV in last 7 games
     cluster_label: Optional[str] = None   # COLD | NORMAL | HOT | NUCLEAR
     cluster_score: int = 0
     tags: List[str] = field(default_factory=list)
