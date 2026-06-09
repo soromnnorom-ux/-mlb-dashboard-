@@ -341,6 +341,13 @@ def api_perf_snapshot():
     return performance.snapshot(_out_dir())
 
 
+@app.get("/api/performance/yesterday")
+def api_perf_yesterday():
+    """Single-date review of yesterday / the most recent graded slate."""
+    from .. import performance
+    return performance.yesterday_report(_out_dir())
+
+
 @app.get("/api/value/{date}")
 def api_value(date: str):
     from .. import manual_odds, value_center

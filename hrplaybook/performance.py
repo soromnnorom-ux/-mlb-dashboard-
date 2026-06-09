@@ -14,6 +14,7 @@ from __future__ import annotations
 import csv
 import datetime as _dt
 import json
+import re
 from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -269,17 +270,88 @@ def calibration(rows):
 # --------------------------------------------------------------------------- #
 def window_range(name: str, today: str) -> tuple:
     t = _dt.date.fromisoformat(today)
-    if name == "today":
+    name = (name or "all").strip()
+    if name in ("today", "daily"):
         return today, today
     if name == "yesterday":
         y = (t - _dt.timedelta(days=1)).isoformat()
         return y, y
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", name):     # an explicit single date
+        return name, name
+    m = re.fullmatch(r"[Ll](\d+)", name)             # L3 / L5 / L10 ... last N days
+    if m:
+        n = int(m.group(1))
+        return (t - _dt.timedelta(days=n - 1)).isoformat(), today
     if name in ("7d", "14d", "30d"):
         days = int(name[:-1])
         return (t - _dt.timedelta(days=days)).isoformat(), today
     if name == "season":
         return f"{t.year}-01-01", today
     return "0000-01-01", "9999-12-31"   # all-time
+
+
+def graded_dates(out_root: str | Path = "out") -> List[str]:
+    """Sorted distinct dates that have at least one decided (graded) ledger row."""
+    seen = set()
+    for r in load_ledger(out_root):
+        w = r.get("won")
+        if w not in (None, "", "None"):
+            seen.add(r.get("date"))
+    return sorted(d for d in seen if d)
+
+
+def resolve_yesterday(out_root: str | Path, today: str) -> tuple:
+    """Return (resolved_date, label, warning).
+
+    Yesterday = previous calendar date if it has graded data; otherwise the most
+    recent graded slate strictly before today. Never a future date.
+    """
+    gd = graded_dates(out_root)
+    y = (_dt.date.fromisoformat(today) - _dt.timedelta(days=1)).isoformat()
+    if y in gd:
+        return y, f"Yesterday Review: {y}", None
+    before = [d for d in gd if d < today]
+    if before:
+        d = before[-1]
+        return (d, f"Previous Graded Slate: {d}",
+                "No graded data for yesterday. Showing previous graded slate instead.")
+    return None, "No previous graded slate found.", "No previous graded slate found."
+
+
+def _signal_ranking(rows: List[dict]):
+    sig = by_signal(rows)
+    ranked = sorted(
+        [{"tag": t, **v} for t, v in sig.items() if v["n"] >= 1],
+        key=lambda x: (x["roi"] if x["roi"] is not None else -9, x["hit_rate"] or 0))
+    return sig, list(reversed(ranked))[:3], ranked[:3]   # sig, best, worst
+
+
+def yesterday_report(out_root: str | Path = "out", today: Optional[str] = None) -> dict:
+    """Single-date review of yesterday / the most recent graded slate."""
+    today = today or _dt.date.today().isoformat()
+    rd, label, warning = resolve_yesterday(out_root, today)
+    if rd is None:
+        return {"resolved_date": None, "label": label, "warning": warning,
+                "total_picks": 0, "graded_picks": 0, "ungraded_picks": 0,
+                "by_market": {}, "by_grade": {}, "by_signal": {},
+                "best_signals": [], "worst_signals": [], "rows": []}
+    rows = collect(out_root, rd, rd)                  # ONE date only
+    from .report.picks import load_picks
+    picks = [p for p in load_picks(Path(out_root) / rd) if p.get("bets")]
+    total = len(picks)
+    # cap graded at total so the counts can never contradict (ledger may carry
+    # rows from an earlier build of the same slate)
+    graded_players = min(len({r["batter_id"] for r in rows}), total) if total else \
+        len({r["batter_id"] for r in rows})
+    sig, best, worst = _signal_ranking(rows)
+    return {
+        "resolved_date": rd, "label": label, "warning": warning,
+        "total_picks": total, "graded_picks": graded_players,
+        "ungraded_picks": max(0, total - graded_players),
+        "by_market": by_bet_type(rows), "by_grade": by_grade(rows),
+        "by_signal": sig, "best_signals": best, "worst_signals": worst,
+        "rows": rows,
+    }
 
 
 # --------------------------------------------------------------------------- #
@@ -321,7 +393,13 @@ def auto_insights(rows: List[dict]) -> List[str]:
 def report(out_root: str | Path = "out", window: str = "all",
            today: Optional[str] = None) -> dict:
     today = today or _dt.date.today().isoformat()
-    start, end = window_range(window, today)
+    resolved_date = label = warning = None
+    if window == "yesterday":
+        rd, label, warning = resolve_yesterday(out_root, today)
+        resolved_date = rd
+        start, end = (rd, rd) if rd else ("9999-99-99", "9999-99-99")
+    else:
+        start, end = window_range(window, today)
     rows = collect(out_root, start, end)
     rich_n = sum(1 for r in rows if r["rich"])
     from . import calibration as calib
@@ -329,6 +407,7 @@ def report(out_root: str | Path = "out", window: str = "all",
     cal_status = calib.calibration_status(rows, _tables)
     return {
         "window": window, "n": len(rows), "rich_n": rich_n,
+        "resolved_date": resolved_date, "label": label, "warning": warning,
         "calibration_status": cal_status,
         "calibration_coverage": calib.coverage(_tables),
         "overall": record(rows),

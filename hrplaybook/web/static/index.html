@@ -824,17 +824,29 @@ async function renderModel(){
 }
 
 // --- Model Performance (Phase 19, Batch 5) ---
-const PERF_WINDOWS=[["today","Today"],["yesterday","Yesterday"],["7d","7d"],["14d","14d"],["30d","30d"],["season","Season"],["all","All-Time"]];
+const PERF_WINDOWS=[["today","Today"],["yesterday","Yesterday"],["daily","Daily"],
+  ["L3","L3"],["L5","L5"],["L7","L7"],["L10","L10"],["L15","L15"],["L20","L20"],["L30","L30"],
+  ["season","Season"],["all","All-Time"]];
 function roiTxt(v){return v==null?"—":`<span class="${v>=0?'ev-pos':'ev-neg'}">${v>=0?'+':''}${(v*100).toFixed(0)}%</span>`;}
 function recCells(r){return `<td class="mono">${r.w}-${r.l}</td><td class="mono">${r.hit_rate==null?'—':(r.hit_rate*100).toFixed(0)+'%'}</td>
   <td class="mono">${roiTxt(r.roi)}</td><td class="mono">${r.profit>=0?'+':''}${r.profit}</td>${r.low_sample?'<td class="sp" style="color:#d29922">low n='+r.n+'</td>':'<td></td>'}`;}
 
 async function renderPerformance(){
   const win=STATE.perfWindow||"all";
+  const apiWin = (win==="daily") ? (STATE.date||win) : win;   // Daily = selected date
   $("#view").innerHTML=`<div class="empty">Loading…</div>`;
-  let p; try{ p=await api("/api/performance?window="+win);}catch(e){ p=null; }
+  let p; try{ p=await api("/api/performance?window="+apiWin);}catch(e){ p=null; }
   if(!p){ $("#view").innerHTML=`<div class="empty">No performance data.</div>`; return; }
   const chips=PERF_WINDOWS.map(([k,l])=>`<div class="chip ${k===win?'active':''}" data-pw="${k}">${l}</div>`).join("");
+  // single-date review banner (Yesterday / Previous Graded Slate / Daily)
+  let dayBanner="";
+  if(win==="yesterday"){
+    const lbl=p.label||"Yesterday"; const warn=p.warning?` <span style="color:#f0a064">— ${p.warning}</span>`:"";
+    dayBanner=`<div class="read" style="border-left-color:#388bfd"><div class="rg"><b>${lbl}</b>${warn}`+
+      `${p.resolved_date?` · ${p.n} graded rows (one date only)`:""}</div></div>`;
+  } else if(win==="daily"){
+    dayBanner=`<div class="read" style="border-left-color:#388bfd"><div class="rg"><b>Daily Review: ${STATE.date}</b> <span class="sp">(single date)</span></div></div>`;
+  }
   const o=p.overall;
   const bt=p.by_bet_type||{};
   const cards=`<div class="banner">
@@ -899,7 +911,7 @@ async function renderPerformance(){
      return `<tr><td><b>${mk}</b></td><td><span class="gpill ${cvgCls[c.status]||'g-C'}">${c.status||'?'}</span></td>
        <td class="mono">${c.n||0}</td><td class="mono">${c.buckets_calibrated||0}/${c.buckets_total||0}</td>
        <td class="sp" style="color:#adbac7">${c.message||''}</td></tr>`;}).join("")+`</tbody></table></div>`;
-  $("#view").innerHTML=`<div class="chips">${chips}</div>`+lowWarn+cards+richNote+cvgTbl
+  $("#view").innerHTML=`<div class="chips">${chips}</div>`+dayBanner+lowWarn+cards+richNote+cvgTbl
     +tbl("Bet Type Performance",bt,"Bet")
     +calTbl+csTbl+insights+vaTbl
     +tbl("Grade Performance",p.by_grade,"Grade")
