@@ -981,6 +981,11 @@ async function renderValue(){
         const msg={no_key:"no API key in environment",invalid_key:"API key invalid",
           quota_exhausted:"API quota exhausted"}[r.error]||r.error||"failed";
         st.textContent="❌ "+msg;
+      }else if(r.records_saved===0){
+        // 0 records with a valid key is NOT an error — props post near first pitch
+        st.innerHTML=`<span style="color:#e3b341">API connected, but player props are not available yet. `+
+          `Try closer to first pitch or enter odds manually.</span> `+
+          `<span class="sp">(key ${r.active_key_name} · quota ${r.quota_remaining??"?"})</span>`;
       }else{
         st.innerHTML=`✅ key <b>${r.active_key_name}</b> · ${r.records_saved} records · `+
           `books ${(r.books||[]).join(", ")||"—"} · quota ${r.quota_remaining??"?"}`+
