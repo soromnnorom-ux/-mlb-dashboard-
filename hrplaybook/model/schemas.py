@@ -128,6 +128,7 @@ class Batter:
     weighted: Dict = field(default_factory=dict)   # weighted power profile
     trend: Dict = field(default_factory=dict)      # trend grade/label/reasons
     sample_warnings: List[str] = field(default_factory=list)
+    bvp: Optional[Dict] = None                     # batter-vs-pitcher record (Batch 10)
     tags: List[str] = field(default_factory=list)
 
     @property

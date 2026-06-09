@@ -160,6 +160,10 @@ def reasons(m: dict, market: str) -> List[str]:
     l30 = _f(m, "l30_avg")
     if market == "Hits" and l30 is not None and l30 >= .3:
         out.append(f"Hot at the plate (L30 {l30:.3f})")
+    # BvP as a SUPPORTING reason only (useful+ sample, good history)
+    if m.get("bvp_sample_size") in ("USEFUL", "STRONG") and "BVP_GOOD_HISTORY" in tags_of(m):
+        br = _split(m.get("bvp_reasons"))
+        out.append("Good BvP history: " + (br[0] if br else "strong vs this pitcher"))
     return out[:5]
 
 
@@ -183,6 +187,9 @@ def red_flags(m: dict, market: str) -> List[str]:
         out.append("No Statcast match")
     if m.get("value") == "-EV":
         out.append("Negative value vs odds")
+    if "BVP_STRIKEOUT_RISK" in tags_of(m):
+        br = [r for r in _split(m.get("bvp_reasons")) if "strikeout" in r.lower()]
+        out.append("BvP risk: " + (br[0] if br else "high strikeout history vs this pitcher"))
     return out[:4]
 
 
@@ -254,6 +261,42 @@ def best5(matchups: List[dict], pitchers: List[dict], games: List[dict]) -> dict
     pa = pitchers_to_attack(pitchers, games, 1)
     out["pitcher"] = pa[0] if pa else None
     return out
+
+
+def _bvp_row(m: dict) -> dict:
+    return {
+        "batter": m.get("batter"), "team": m.get("team"), "batter_id": m.get("batter_id"),
+        "opp_team": m.get("opp_team"), "opp_sp": m.get("opp_sp"),
+        "pa": _f(m, "bvp_pa"), "avg": _f(m, "bvp_avg"), "slg": _f(m, "bvp_slg"),
+        "hr": _f(m, "bvp_hr"), "k": _f(m, "bvp_k"), "bb": _f(m, "bvp_bb"),
+        "avg_ev": _f(m, "bvp_avg_ev"), "max_ev": _f(m, "bvp_max_ev"),
+        "barrels": _f(m, "bvp_barrels"), "hardhit": _f(m, "bvp_hardhit"),
+        "grade": m.get("bvp_grade"), "sample_size": m.get("bvp_sample_size"),
+        "confidence": m.get("bvp_confidence"), "edge_label": m.get("bvp_edge_label"),
+        "reasons": _split(m.get("bvp_reasons")),
+    }
+
+
+def bvp_board(matchups: List[dict]) -> dict:
+    """BvP page sections (all derived from stored BvP columns; never fabricated)."""
+    rows = [_bvp_row(m) for m in matchups if _f(m, "bvp_pa") and _f(m, "bvp_pa") > 0]
+    tagset = {m.get("batter_id"): tags_of(m) for m in matchups}
+
+    def has_tag(r, t):
+        return t in (tagset.get(r["batter_id"]) or [])
+    power = sorted([r for r in rows if r["edge_label"] in ("ELITE_HISTORY", "GOOD_HISTORY")
+                    and ((r["hr"] or 0) >= 1 or (r["barrels"] or 0) >= 1)],
+                   key=lambda r: (-(r["hr"] or 0), -(r["slg"] or 0)))
+    total_bases = sorted([r for r in rows if r["sample_size"] in ("USEFUL", "STRONG")
+                          and (r["slg"] or 0) >= 0.450],
+                         key=lambda r: -(r["slg"] or 0))
+    k_risk = sorted([r for r in rows if has_tag(r, "BVP_STRIKEOUT_RISK")],
+                    key=lambda r: -(r["k"] or 0))
+    too_small = [r for r in rows if r["sample_size"] == "TOO_SMALL"]
+    full = sorted(rows, key=lambda r: -(r["pa"] or 0))
+    return {"power": power[:15], "total_bases": total_bases[:15],
+            "k_risk": k_risk[:15], "too_small": too_small[:25],
+            "full": full, "count": len(rows)}
 
 
 def baseline_coverage(matchups: List[dict], pitchers: List[dict]) -> dict:

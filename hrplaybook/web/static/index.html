@@ -174,6 +174,7 @@
   <button data-tab="pitchers">Pitchers</button>
   <button data-tab="missed">Missed HR</button>
   <button data-tab="contact">Contact</button>
+  <button data-tab="bvp">BvP</button>
   <button data-tab="slate">Slate</button>
   <button data-tab="matchups">Matchups</button>
   <button data-tab="performance">Performance</button>
@@ -233,6 +234,7 @@ function render(){
   if(STATE.tab==="pitchers"){ return renderPitchers(); }
   if(STATE.tab==="missed"){ return renderMissed(); }
   if(STATE.tab==="contact"){ return renderContact(); }
+  if(STATE.tab==="bvp"){ return renderBvP(); }
   if(!s || !s.exists){
     v.innerHTML=`<div class="empty">No data for <b>${STATE.date}</b>.<br/>Click <b>Run</b> to build this slate.</div>`;
     return;
@@ -687,6 +689,54 @@ function msBlock(ms){
       ${trendCard}
     </div></div>`;
 }
+function fmt3(v){return v==null||v===""||isNaN(v)?"—":(+v).toFixed(3).replace(/^0/,"");}
+function bvpBadge(label){
+  const m={ELITE_HISTORY:["tb-imp","ELITE"],GOOD_HISTORY:["tb-imp","GOOD"],NEUTRAL:["tb-same","NEUTRAL"],
+    BAD_HISTORY:["tb-dec","BAD"],TOO_SMALL_SAMPLE:["tb-small","TOO SMALL"]}[label]||["tb-same",label||"—"];
+  return `<span class="gpill ${m[0]}">${m[1]}</span>`;
+}
+function bvpCard(b){
+  if(!b||!b.pa) return `<div style="margin-top:8px"><span class="lbl" style="font-size:11px;color:var(--muted);text-transform:uppercase">BvP</span> <span class="sp">unavailable</span></div>`;
+  const small=b.sample_size==='TOO_SMALL';
+  return `<div style="margin-top:8px;border-top:1px solid var(--line);padding-top:8px">
+    <div class="lbl" style="font-size:11px;color:var(--muted);text-transform:uppercase;margin-bottom:4px">
+      BvP <span class="sp">(supporting only)</span> ${bvpBadge(b.edge_label)}
+      <span class="gpill ${gradeCls(b.grade)}">${b.grade}</span>
+      <span class="tag">${b.sample_size} · ${b.confidence} conf</span></div>
+    <div class="sub">${b.pa} PA · AVG ${fmt3(b.avg)} · SLG ${fmt3(b.slg)} · HR ${b.hr??0} · K ${b.k??0} · maxEV ${b.max_ev??'—'} · brl ${b.barrels??0}</div>
+    ${small?`<div class="sub miss">BvP sample too small. Displayed for context only.</div>`
+      :`<div class="sub" style="color:#adbac7">${(b.reasons||[]).map(r=>'• '+r).join('<br/>')}</div>`}</div>`;
+}
+
+async function renderBvP(){
+  $("#view").innerHTML=`<div class="empty">Loading…</div>`;
+  let d; try{ d=await api("/api/bvp/"+STATE.date); }catch(e){ d={exists:false}; }
+  if(!d.exists){ $("#view").innerHTML=`<div class="empty">No data for <b>${STATE.date}</b>. Click <b>Run</b>.</div>`; return; }
+  const note=`<div class="read" style="border-left-color:#d29922"><div class="rg">
+    <b>BvP is a supporting signal only.</b> Do not bet a player just because of past success vs a pitcher — small samples mislead. Sample size & confidence shown on every row.</div></div>`;
+  const tbl=(title,rows)=>!rows.length?`<h3>${title}</h3><div class="sp" style="color:var(--muted)">none</div>`:
+    `<h3>${title} (${rows.length})</h3><div class="panel"><table class="cs"><thead><tr>
+      <th>Player</th><th>Tm</th><th>vs SP</th><th>PA</th><th>AVG</th><th>SLG</th><th>HR</th><th>K</th>
+      <th>maxEV</th><th>brl</th><th>Grade</th><th>History</th><th>Reasons</th></tr></thead><tbody>`+
+    rows.map(r=>`<tr><td><b>${r.batter}</b></td><td>${r.team}</td><td>${r.opp_sp||r.opp_team}</td>
+      <td class="mono">${r.pa??0}</td><td class="mono">${fmt3(r.avg)}</td><td class="mono">${fmt3(r.slg)}</td>
+      <td class="mono">${r.hr??0}</td><td class="mono">${r.k??0}</td><td class="mono">${r.max_ev??'—'}</td>
+      <td class="mono">${r.barrels??0}</td><td><span class="gpill ${gradeCls(r.grade)}">${r.grade||'—'}</span></td>
+      <td>${bvpBadge(r.edge_label)}</td><td class="sp" style="color:#adbac7">${(r.reasons||[]).slice(0,2).join(" · ")}</td></tr>`).join("")
+    +`</tbody></table></div>`;
+  const minpa=STATE.bvpMinPA||0;
+  const full=(d.full||[]).filter(r=>(r.pa||0)>=minpa);
+  $("#view").innerHTML=note
+    +tbl("Best BvP Power History", d.power||[])
+    +tbl("Best BvP Total Bases History", d.total_bases||[])
+    +tbl("BvP Strikeout Risk", d.k_risk||[])
+    +tbl("Too Small To Trust", d.too_small||[])
+    +`<div class="filters"><label class="sp">Min PA <input id="bvpMin" type="number" min="0" value="${minpa}" style="width:70px"/></label>
+       <span class="sp" style="align-self:center;color:var(--muted)">${full.length} matchups</span></div>`
+    +tbl("Full BvP Table", full);
+  const el=$("#bvpMin"); if(el) el.onchange=e=>{STATE.bvpMinPA=+e.target.value||0; renderBvP();};
+}
+
 async function renderModel(){
   if($("#dateSel").value)STATE.date=$("#dateSel").value;
   $("#view").innerHTML=`<div class="empty">Loading…</div>`;
@@ -717,7 +767,7 @@ async function renderModel(){
           const vline=vr?`<div class="sub" style="margin-top:2px">💰 ${oddsFmt(vr.odds)} · edge ${edgeFmt(vr.edge)} · <span class="gpill ${valCls(vr.value)}">${vr.value}</span></div>`
             :`<div class="sub" style="margin-top:2px;color:var(--muted)">Value unknown — odds not entered</div>`;
           return `<div><div class="lbl" style="font-size:11px;color:var(--muted);text-transform:uppercase;margin-bottom:4px">${x} = ${p.scores[x].score} <span class="gpill ${gradeCls(p.scores[x].grade)}">${p.scores[x].grade}</span></div>${bdBars(p.scores[x].breakdown)}${probLine}${vline}</div>`;}).join("")}
-        </div>${msBlock(p.multiseason)}</td></tr>`;
+        </div>${msBlock(p.multiseason)}${bvpCard(p.bvp)}</td></tr>`;
   }).join("");
   const bc=d.baseline_coverage||{};
   const bcLow=(bc.warnings||[]).includes("LOW_2025_BASELINE_COVERAGE");

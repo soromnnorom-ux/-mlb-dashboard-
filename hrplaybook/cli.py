@@ -13,7 +13,7 @@ from .http import Client
 from .model.enrich import attach_arsenal, bullpen_hr9, enrich_batter
 from .model.schemas import Batter, Game, Matchup, Pitcher, load_parks
 from .report import cards, cheatsheet, csvout
-from . import seasons
+from . import bvp, seasons
 from .report.picks import load_picks, write_picks
 from .score.bettypes import map_bets
 from .score.environment import score_environment
@@ -194,6 +194,7 @@ def build_slate(
     matchups: List[Matchup] = []
     pulled_at = now_stamp()
     win_start = window_start(date, cfg.recent_window_days)
+    bvp_start = f"{cfg.season - 3}-01-01"   # ~3-season BvP career window
     stat_n = 0
     for g in games:
         box = statsapi.fetch_boxscore(client, g.game_pk)
@@ -222,6 +223,12 @@ def build_slate(
                     b.win30 = seasons.window_metrics(balls, date, 30)
                     b.win14 = seasons.window_metrics(balls, date, 14)
                     b.win7 = seasons.window_metrics(balls, date, 7)
+                    # BvP: career history vs the opposing starter (supporting only)
+                    if opp_pitcher and opp_pitcher.player_id:
+                        b.bvp = bvp.build(savant.parse_bvp(savant.fetch_statcast_bvp(
+                            client, b.player_id, opp_pitcher.player_id, bvp_start, date)))
+                        if b.bvp:
+                            b.tags.extend(t for t in b.bvp.get("tags", []) if t not in b.tags)
                     stat_n += 1
                     if progress and stat_n % 20 == 0:
                         typer.echo(f"   …statcast pulled for {stat_n} batters", err=True)

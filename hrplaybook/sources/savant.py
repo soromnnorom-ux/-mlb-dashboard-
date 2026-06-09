@@ -207,3 +207,37 @@ def parse_pa_events(text: Optional[str]) -> List[dict]:
             continue
         out.append({"game_date": row.get("game_date"), "events": ev})
     return out
+
+
+def fetch_statcast_bvp(client: Client, batter_id: int, pitcher_id: int,
+                       start: str, end: str) -> Optional[str]:
+    """All pitches a batter has seen from a specific pitcher (career window)."""
+    url = f"{BASE}/statcast_search/csv"
+    params = {
+        "all": "true", "type": "details", "player_type": "batter",
+        "batters_lookup[]": [batter_id], "pitchers_lookup[]": [pitcher_id],
+        "game_date_gt": start, "game_date_lt": end, "min_results": 0,
+    }
+    return client.get_text("savant", url, params)
+
+
+def parse_bvp(text: Optional[str]) -> List[dict]:
+    """One dict per pitch (includes non-contact pitches), newest first."""
+    out: List[dict] = []
+    for row in _read_csv(text):
+        out.append({
+            "game_date": row.get("game_date"),
+            "inning": to_int(row.get("inning")),
+            "balls": to_int(row.get("balls")),
+            "strikes": to_int(row.get("strikes")),
+            "pitch_type": (row.get("pitch_type") or "").strip().upper(),
+            "release_speed": to_float(row.get("release_speed")),
+            "description": (row.get("description") or "").strip(),
+            "events": (row.get("events") or "").strip(),
+            "launch_speed": to_float(row.get("launch_speed")),
+            "launch_angle": to_float(row.get("launch_angle")),
+            "hit_distance_sc": to_float(row.get("hit_distance_sc")),
+            "bb_type": (row.get("bb_type") or "").strip(),
+            "xwoba": to_float(row.get("estimated_woba_using_speedangle")),
+        })
+    return out

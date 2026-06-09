@@ -391,6 +391,14 @@ def api_model(date: str):
             "platoon": m.get("platoon"), "env_tier": m.get("env_tier"),
             "lineup_state": m.get("lineup_state"), "tags": m.get("tags"),
             "scores": sc, "probs": probs,
+            "bvp": {
+                "grade": m.get("bvp_grade"), "sample_size": m.get("bvp_sample_size"),
+                "confidence": m.get("bvp_confidence"), "edge_label": m.get("bvp_edge_label"),
+                "pa": m.get("bvp_pa"), "avg": m.get("bvp_avg"), "slg": m.get("bvp_slg"),
+                "hr": m.get("bvp_hr"), "k": m.get("bvp_k"), "max_ev": m.get("bvp_max_ev"),
+                "barrels": m.get("bvp_barrels"), "reasons": _split(m.get("bvp_reasons")),
+                "pitch_history": _pj(m.get("bvp_pitch_history")) or [],
+            },
             "multiseason": {
                 "s2025": _pj(m.get("batter_2025_stats")),
                 "cur": {"barrel_pct": m.get("barrel_pct"), "avg_ev": m.get("avg_ev"),
@@ -406,6 +414,19 @@ def api_model(date: str):
     return {"exists": True, "date": date, "players": players,
             "coverage": calibration.coverage(tables),
             "baseline_coverage": featured.baseline_coverage(s["matchups"], pitchers)}
+
+
+@app.get("/api/bvp/{date}")
+def api_bvp(date: str):
+    from .. import featured
+    try:
+        date = resolve_date(date)
+    except ValueError:
+        raise HTTPException(400, "bad date")
+    s = _slate(date)
+    if not s["exists"]:
+        return {"exists": False, "date": date}
+    return {"exists": True, "date": date, **featured.bvp_board(s["matchups"])}
 
 
 @app.get("/api/calibration")

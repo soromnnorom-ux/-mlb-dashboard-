@@ -46,6 +46,10 @@ def write_picks(outdir: str | Path, matchups: List[Matchup], date: str) -> str:
             "cluster_label": b.cluster_label,
             "missed_hr": b.missed_hr,
             "tags": list(dict.fromkeys(list(m.tags) + list(b.tags))),
+            "bvp_grade": (b.bvp or {}).get("grade"),
+            "bvp_sample_size": (b.bvp or {}).get("sample_size"),
+            "bvp_edge_label": (b.bvp or {}).get("edge_label"),
+            "bvp_pa": (b.bvp or {}).get("pa"),
         })
         # persist raw probs for ALL markets so HRR/Hits can calibrate over time
         # (HR/TB come from the model; HRR/Hits are score-derived in value_center).
