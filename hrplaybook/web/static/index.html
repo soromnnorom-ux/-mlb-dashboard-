@@ -167,6 +167,7 @@
   <button data-tab="contact">Contact</button>
   <button data-tab="slate">Slate</button>
   <button data-tab="matchups">Matchups</button>
+  <button data-tab="performance">Performance</button>
   <button data-tab="ledger">Ledger</button>
   <button data-tab="glossary">Glossary</button>
 </nav>
@@ -218,6 +219,7 @@ function render(){
   if(STATE.tab==="home"){ return renderHome(); }
   if(STATE.tab==="model"){ return renderModel(); }
   if(STATE.tab==="value"){ return renderValue(); }
+  if(STATE.tab==="performance"){ return renderPerformance(); }
   if(STATE.tab==="weather"){ return renderWeather(); }
   if(STATE.tab==="pitchers"){ return renderPitchers(); }
   if(STATE.tab==="missed"){ return renderMissed(); }
@@ -500,7 +502,8 @@ async function renderHome(){
     ${pWidget("Most Attackable Pitcher", w.top_pitcher)}
     ${mWidget("Best Missed HR", w.best_missed_hr)}
     ${cWidget("Best Contact Cluster", w.best_contact)}
-    ${vWidget("Top Value Bet", (h.value||{}).best_overall, (h.value||{}).has_odds)}</div>`;
+    ${vWidget("Top Value Bet", (h.value||{}).best_overall, (h.value||{}).has_odds)}
+    ${snapWidget(h.perf_snapshot)}</div>`;
   $("#view").innerHTML=read+gradeRow+summaryStats
     +`<h3>Quick widgets</h3>`+widgets
     +`<h3>Today's Best 5</h3><div class="best-grid">${cards}</div>`+tops;
@@ -529,6 +532,15 @@ function mWidget(label,c){
     <div class="big"><span class="gpill ${txtGrade(c.grade)}">${c.grade}</span></div>
     <div class="nm" style="margin-top:6px">${c.batter}</div>
     <div class="sub">${c.team} vs ${c.opp_sp||c.opp_team} · ${det}</div></div>`;
+}
+function snapWidget(s){
+  const lbl="Model Snapshot (7d)";
+  if(!s||!s.enough) return `<div class="bcard"><div class="lbl">${lbl}</div><div class="sub" style="margin-top:14px">${(s&&s.message)||'Not enough graded results yet.'}</div></div>`;
+  const roi=s.roi_7d==null?"—":(s.roi_7d*100>=0?'+':'')+(s.roi_7d*100).toFixed(0)+'%';
+  return `<div class="bcard"><div class="lbl">${lbl}</div>
+    <div class="big"><div class="sc" style="background:none;padding:0;font-size:24px">${roi}</div></div>
+    <div class="sub" style="margin-top:6px">best bet: <b>${s.best_bet||'—'}</b> · best signal: ${s.best_signal||'—'}</div>
+    <div class="sub">worst signal: ${s.worst_signal||'—'} · value-alert ROI ${s.value_alert_roi==null?'—':(s.value_alert_roi*100).toFixed(0)+'%'}</div></div>`;
 }
 function vWidget(label,r,hasOdds){
   if(!r) return `<div class="bcard"><div class="lbl">${label}</div><div class="sub" style="margin-top:14px">${hasOdds?'no +EV plays':'enter odds in Value tab'}</div></div>`;
@@ -661,6 +673,74 @@ async function renderModel(){
   document.querySelectorAll(".mrow").forEach(r=>r.onclick=()=>{
     const dt=document.querySelector(`.mdetail[data-d="${r.dataset.i}"]`);
     if(dt) dt.style.display = dt.style.display==="none"?"table-row":"none";});
+}
+
+// --- Model Performance (Phase 19, Batch 5) ---
+const PERF_WINDOWS=[["today","Today"],["yesterday","Yesterday"],["7d","7d"],["14d","14d"],["30d","30d"],["season","Season"],["all","All-Time"]];
+function roiTxt(v){return v==null?"—":`<span class="${v>=0?'ev-pos':'ev-neg'}">${v>=0?'+':''}${(v*100).toFixed(0)}%</span>`;}
+function recCells(r){return `<td class="mono">${r.w}-${r.l}</td><td class="mono">${r.hit_rate==null?'—':(r.hit_rate*100).toFixed(0)+'%'}</td>
+  <td class="mono">${roiTxt(r.roi)}</td><td class="mono">${r.profit>=0?'+':''}${r.profit}</td>${r.low_sample?'<td class="sp" style="color:#d29922">low n='+r.n+'</td>':'<td></td>'}`;}
+
+async function renderPerformance(){
+  const win=STATE.perfWindow||"all";
+  $("#view").innerHTML=`<div class="empty">Loading…</div>`;
+  let p; try{ p=await api("/api/performance?window="+win);}catch(e){ p=null; }
+  if(!p){ $("#view").innerHTML=`<div class="empty">No performance data.</div>`; return; }
+  const chips=PERF_WINDOWS.map(([k,l])=>`<div class="chip ${k===win?'active':''}" data-pw="${k}">${l}</div>`).join("");
+  const o=p.overall;
+  const bt=p.by_bet_type||{};
+  const cards=`<div class="banner">
+    <div class="stat"><div class="n">${roiTxt(o.roi)}</div><div class="l">overall ROI</div></div>
+    <div class="stat"><div class="n">${o.hit_rate==null?'—':(o.hit_rate*100).toFixed(0)+'%'}</div><div class="l">hit rate (${o.n})</div></div>`
+    +["HR","TB","HRR","Hits"].map(b=>`<div class="stat"><div class="n">${bt[b]?roiTxt(bt[b].roi):'—'}</div><div class="l">${b} ROI ${bt[b]?'('+bt[b].w+'-'+bt[b].l+')':''}</div></div>`).join("")
+    +`</div>`;
+  const lowWarn=o.low_sample?`<div class="note" style="border-left-color:#d29922">⚠️ Low sample (${o.n} bets) — don't trust these numbers yet.</div>`:"";
+  const richNote=`<div class="sp" style="color:var(--muted);margin-bottom:10px">${p.n} graded bets · ${p.rich_n} with rich snapshot (signal/grade/cluster breakdowns need the rich snapshot — they populate for slates run after the v2 upgrade).</div>`;
+  function tbl(title, obj, label){
+    const keys=Object.keys(obj||{}).filter(k=>k!=="_all");
+    if(!keys.length) return `<h3>${title}</h3><div class="sp" style="color:var(--muted)">no data yet</div>`;
+    return `<h3>${title}</h3><div class="panel"><table><thead><tr><th>${label}</th><th>Rec</th><th>Hit</th><th>ROI</th><th>P/L</th><th></th></tr></thead><tbody>`+
+      keys.map(k=>`<tr><td><b>${k}</b></td>${recCells(obj[k])}</tr>`).join("")+`</tbody></table></div>`;
+  }
+  // signal table (with best/worst bet)
+  const sig=p.by_signal||{};
+  const sigTbl=Object.keys(sig).length?`<h3>Signal / Tag Performance</h3><div class="panel"><table><thead><tr>
+    <th>Signal</th><th>Rec</th><th>Hit</th><th>ROI</th><th>Best bet</th><th>Worst bet</th></tr></thead><tbody>`+
+    Object.entries(sig).map(([t,r])=>`<tr><td><b>${t}</b></td><td class="mono">${r.w}-${r.l}</td>
+      <td class="mono">${r.hit_rate==null?'—':(r.hit_rate*100).toFixed(0)+'%'}</td><td class="mono">${roiTxt(r.roi)}</td>
+      <td>${r.best_bet||'—'}</td><td>${r.worst_bet||'—'}</td></tr>`).join("")+`</tbody></table></div>`
+    :`<h3>Signal / Tag Performance</h3><div class="sp" style="color:var(--muted)">no rich snapshots in range yet</div>`;
+  // calibration
+  const cal=p.calibration||[];
+  const calTbl=`<h3>Model Calibration <span class="sp" style="color:var(--muted)">(model prob vs actual)</span></h3>
+    <div class="panel"><table><thead><tr><th>Bucket</th><th>N</th><th>Avg model%</th><th>Actual%</th><th>Diff</th><th>Read</th></tr></thead><tbody>`+
+    cal.map(c=>`<tr><td>${c.bucket}</td><td class="mono">${c.n}</td>
+      <td class="mono">${c.avg_prob==null?'—':(c.avg_prob*100).toFixed(0)+'%'}</td>
+      <td class="mono">${c.actual==null?'—':(c.actual*100).toFixed(0)+'%'}</td>
+      <td class="mono ${c.diff==null?'':c.diff<0?'ev-neg':'ev-pos'}">${c.diff==null?'—':(c.diff*100>=0?'+':'')+(c.diff*100).toFixed(0)+'%'}</td>
+      <td class="sp">${c.diff==null||c.n<10?'':c.diff<-0.04?'overconfident':c.diff>0.04?'underconfident':'calibrated'}</td></tr>`).join("")+`</tbody></table></div>`;
+  // value alerts
+  const va=(p.value_alerts||{}).overall||{};
+  const vaTbl=`<h3>Value Alert Performance (edge ≥ 5%)</h3>`+(va.n?`<div class="panel"><table><thead><tr><th></th><th>Rec</th><th>Hit</th><th>ROI</th><th>P/L</th><th></th></tr></thead><tbody><tr><td><b>All alerts</b></td>${recCells(va)}</tr>`+
+    Object.entries((p.value_alerts||{}).by_value_grade||{}).map(([g,r])=>`<tr><td>${g}</td>${recCells(r)}</tr>`).join("")+`</tbody></table></div>`
+    :`<div class="sp" style="color:var(--muted)">no priced alerts in range (needs odds)</div>`);
+  // pitchmix buckets
+  const pm=p.by_pitchmix||{};
+  const pmTbl=`<h3>Pitch-Mix Bucket Performance (B%PM)</h3>`+(Object.values(pm).some(v=>v._all&&v._all.n)?`<div class="panel"><table><thead><tr><th>Bucket</th><th>Rec</th><th>Hit</th><th>ROI</th><th>P/L</th><th></th></tr></thead><tbody>`+
+    Object.entries(pm).filter(([k,v])=>v._all&&v._all.n).map(([k,v])=>`<tr><td><b>${k}</b></td>${recCells(v._all)}</tr>`).join("")+`</tbody></table></div>`
+    :`<div class="sp" style="color:var(--muted)">no rich snapshots in range yet</div>`);
+  const insights=`<h3>Auto Insights</h3><div class="read"><div class="rg">`+
+    (p.insights||[]).map(i=>`• ${mdBold(i)}`).join("<br/>")+`</div></div>`;
+
+  $("#view").innerHTML=`<div class="chips">${chips}</div>`+lowWarn+cards+richNote
+    +tbl("Bet Type Performance",bt,"Bet")
+    +calTbl+insights+vaTbl
+    +tbl("Grade Performance",p.by_grade,"Grade")
+    +sigTbl+pmTbl
+    +tbl("Contact Cluster Performance",Object.fromEntries(Object.entries(p.by_cluster||{}).map(([k,v])=>[k,v._all])),"Cluster")
+    +tbl("Environment Grade Performance",p.by_env_grade,"Env")
+    +tbl("Pitcher Attack Performance",p.by_pitcher_attack,"Attack grade");
+  document.querySelectorAll(".chip[data-pw]").forEach(c=>c.onclick=()=>{STATE.perfWindow=c.dataset.pw; renderPerformance();});
 }
 
 // --- Market vs Model / Value (Phase 14, Batch 4) ---

@@ -205,7 +205,7 @@ def api_home(date: str):
         return {"exists": False, "date": date}
     g, m = s["games"], s["matchups"]
     pitchers = _df_records(_out_dir() / date / "pitchers.csv")
-    from .. import manual_odds, value_center
+    from .. import manual_odds, performance, value_center
     wb = featured.weather_board(g)
     missed = featured.missed_hr_candidates(m)
     clusters = featured.contact_clusters(m)
@@ -231,6 +231,7 @@ def api_home(date: str):
             "best_overall": val["best_overall"],
             "alerts": val["alerts"][:5],
         },
+        "perf_snapshot": performance.snapshot(_out_dir()),
         "meta": s.get("meta", {}),
     }
 
@@ -324,6 +325,18 @@ def api_manual_odds_delete(date: str, entry_id: int):
     from .. import manual_odds
     date = resolve_date(date)
     return {"deleted": manual_odds.delete(date, entry_id)}
+
+
+@app.get("/api/performance")
+def api_performance(window: str = "all"):
+    from .. import performance
+    return performance.report(_out_dir(), window=window)
+
+
+@app.get("/api/performance/snapshot")
+def api_perf_snapshot():
+    from .. import performance
+    return performance.snapshot(_out_dir())
 
 
 @app.get("/api/value/{date}")
