@@ -121,27 +121,64 @@ def enrich_batter(
     if ab:
         batter.l30_h, batter.l30_ab = h, ab
 
-    # --- missed-HR tracker -------------------------------------------------
+    # --- missed-HR tracker (EV>=100, dist>=370, LA 20-38, not a HR) ---------
     mh = cfg.missed_hr
-    if any(
-        b["launch_speed"] >= mh.ev
+    missed = [
+        b for b in batted_balls
+        if b["launch_speed"] >= mh.ev
         and (b["hit_distance_sc"] or 0) >= mh.dist
+        and (b["launch_angle"] is not None and 20 <= b["launch_angle"] <= 38)
         and b["events"] != "home_run"
-        for b in batted_balls
-    ):
+    ]
+    if missed:
         batter.missed_hr = True
         batter.tags.append("MISSED_HR")
+        best = max(missed, key=lambda b: b["launch_speed"])
+        batter.missed_hr_ev = round(best["launch_speed"], 1)
+        batter.missed_hr_dist = round(best["hit_distance_sc"]) if best["hit_distance_sc"] else None
+        batter.missed_hr_la = round(best["launch_angle"], 1) if best["launch_angle"] is not None else None
+        batter.missed_hr_pitch = best.get("pitch_type") or None
+        batter.missed_hr_date = best.get("game_date")
 
-    # --- hot-contact cluster ----------------------------------------------
+    # --- recent contact cluster (Phase 10) --------------------------------
     hc = cfg.hot_contact
+    batter.ev95_w = sum(1 for b in batted_balls if b["launch_speed"] >= 95)
+    batter.ev100_w = sum(1 for b in batted_balls if b["launch_speed"] >= 100)
+    batter.ev105_w = sum(1 for b in batted_balls if b["launch_speed"] >= 105)
+    last5 = _recent_dates(batted_balls, 5)
+    batter.ev100_l5g = sum(1 for b in batted_balls
+                           if b["game_date"] in last5 and b["launch_speed"] >= 100)
+    ev95_l5 = sum(1 for b in batted_balls
+                  if b["game_date"] in last5 and b["launch_speed"] >= 95)
+    ev105_l5 = sum(1 for b in batted_balls
+                   if b["game_date"] in last5 and b["launch_speed"] >= 105)
     recent = _recent_dates(batted_balls, hc.games)
-    hard = sum(
-        1 for b in batted_balls
-        if b["game_date"] in recent and b["launch_speed"] >= hc.ev
-    )
+    hard = sum(1 for b in batted_balls
+               if b["game_date"] in recent and b["launch_speed"] >= hc.ev)
     if hard >= hc.count:
         batter.hot_contact = True
+    # cluster label -- based on RECENT form (last 5 games), not 30-day totals
+    if batter.ev100_l5g >= 6 or ev105_l5 >= 3:
+        label = "NUCLEAR"
+    elif hard >= hc.count or batter.ev100_l5g >= 3:
+        label = "HOT"
+    elif batter.recent_window_used and len(last5) >= 3 and ev95_l5 == 0:
+        label = "COLD"
+    else:
+        label = "NORMAL"
+    batter.cluster_label = label
+    batter.cluster_score = int(min(100, batter.ev95_w * 4 + batter.ev100_w * 6
+                                   + batter.ev105_w * 10))
+    if label == "NUCLEAR":
+        batter.tags.append("NUCLEAR_CONTACT")
+    if label == "HOT" and "HOT_CONTACT" not in batter.tags:
         batter.tags.append("HOT_CONTACT")
+    elif label == "HOT":
+        pass
+    if batter.ev100_w >= 2:
+        batter.tags.append("MULTIPLE_100_EV")
+    if label == "COLD":
+        batter.tags.append("COLD_CONTACT")
 
     # --- recency fade: homered in last 1-2 games ---------------------------
     last2 = _recent_dates(batted_balls, 2)

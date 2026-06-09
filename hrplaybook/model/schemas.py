@@ -99,6 +99,19 @@ class Batter:
     missed_hr: bool = False
     hot_contact: bool = False
     recent_hr: bool = False
+    # missed-HR detail (best qualifying batted ball that stayed in the park)
+    missed_hr_ev: Optional[float] = None
+    missed_hr_dist: Optional[float] = None
+    missed_hr_la: Optional[float] = None
+    missed_hr_pitch: Optional[str] = None
+    missed_hr_date: Optional[str] = None
+    # recent contact cluster (Phase 10)
+    ev95_w: int = 0          # 95+ EV batted balls in the pulled window
+    ev100_w: int = 0
+    ev105_w: int = 0
+    ev100_l5g: int = 0       # 100+ EV in last 5 games
+    cluster_label: Optional[str] = None   # COLD | NORMAL | HOT | NUCLEAR
+    cluster_score: int = 0
     tags: List[str] = field(default_factory=list)
 
     @property

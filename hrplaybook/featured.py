@@ -316,4 +316,292 @@ def slate_read(games: List[dict], matchups: List[dict], pitchers: List[dict]) ->
         parts.append("⚠️ Not a strong HR slate — be selective or lean TB/HRR; don't force plays.")
 
     return {"grade": s["grade"], "lean": lean, "weak": weak, "text": " ".join(parts),
-            "summary": s}
+            "grades": slate_grades(matchups), "summary": s}
+
+
+# --------------------------------------------------------------------------- #
+# Per-market slate grades (Batch-2 correction)
+# --------------------------------------------------------------------------- #
+def slate_grades(matchups: List[dict]) -> Dict[str, str]:
+    """HR / TB / HRR / Hits slate grades from the quality+depth of eligible plays.
+
+    A market with no strong play can never grade A+ (the explicit rule).
+    """
+    out = {}
+    for mk in MARKETS:
+        top = top_by_market(matchups, mk, 5)
+        if not top:
+            out[mk] = "D"
+            continue
+        q = sum(r["score"] for r in top) / len(top)
+        best = top[0]["score"]
+        g = grade_from_score(q)
+        if len(top) < 3:                 # thin board -> knock down a notch
+            g = _notch_down(g)
+        if best < 75 and g == "A+":      # no strong play -> cap below A+
+            g = "A"
+        if best < 60:
+            g = _notch_down(g)
+        out[mk] = g
+    return out
+
+
+_LADDER = ["A+", "A", "B", "C", "D"]
+
+
+def _notch_down(g: str) -> str:
+    i = _LADDER.index(g) if g in _LADDER else len(_LADDER) - 1
+    return _LADDER[min(i + 1, len(_LADDER) - 1)]
+
+
+# --------------------------------------------------------------------------- #
+# Phase 6 — Weather Intelligence
+# --------------------------------------------------------------------------- #
+def _temp_pts(t: Optional[float]) -> float:
+    if t is None:
+        return 0.0
+    if t >= 85:
+        return 18
+    if t >= 75:
+        return 10
+    if t >= 68:
+        return 3
+    if t >= 60:
+        return 0
+    return -12
+
+
+def _wind_pts(mph: Optional[float], label: Optional[str]) -> float:
+    if not label or label in ("unknown", "cross", "calm") or mph is None:
+        return 0.0                       # do not overstate when direction unknown
+    if label == "out":
+        return 20 if mph >= 15 else 12 if mph >= 10 else 6 if mph >= 5 else 2
+    if label == "in":
+        return -18 if mph >= 15 else -12 if mph >= 10 else -6 if mph >= 5 else -2
+    return 0.0
+
+
+def _park_pts(hr_factor: Optional[float]) -> float:
+    if hr_factor is None:
+        return 0.0
+    return max(-12.0, min(12.0, (hr_factor - 1.0) * 60.0))
+
+
+def weather_scores(g: dict) -> dict:
+    roof = (g.get("roof") or "open").lower()
+    dome = roof == "closed"
+    temp = _f(g, "temp_f")
+    wind = _f(g, "wind_mph")
+    label = (g.get("wind_out") or "unknown")
+    hrf = _f(g, "park_hr_factor")
+    wind_label = "dome" if dome else (label if label in ("out", "in", "cross", "calm") else "unknown")
+
+    tp = 0.0 if dome else _temp_pts(temp)
+    wp = 0.0 if dome else _wind_pts(wind, label)
+    pp = _park_pts(hrf)
+
+    hr = int(_clip(50 + tp + wp + pp, 0, 100))
+    tb = int(_clip(50 + tp * 0.7 + wp * 0.6 + pp, 0, 100))
+    run = int(_clip(50 + tp * 0.8 + wp * 0.7 + pp, 0, 100))
+    overall = (hr + tb + run) / 3.0
+
+    reasons = []
+    if dome:
+        reasons.append("Dome / closed roof — weather neutral")
+    else:
+        if temp is not None and temp >= 85:
+            reasons.append(f"Hot ({temp:.0f}°F) — elite for carry")
+        elif temp is not None and temp >= 75:
+            reasons.append(f"Warm ({temp:.0f}°F)")
+        elif temp is not None and temp < 60:
+            reasons.append(f"Cold ({temp:.0f}°F) — suppresses carry")
+        if wind_label == "out" and wind:
+            reasons.append(f"Wind out {wind:.0f} mph")
+        elif wind_label == "in" and wind:
+            reasons.append(f"Wind in {wind:.0f} mph")
+        elif wind_label == "unknown":
+            reasons.append("Wind direction unknown")
+    if hrf is not None and hrf >= 1.05:
+        reasons.append(f"Hitter-friendly park ({hrf:.2f})")
+    elif hrf is not None and hrf <= 0.95:
+        reasons.append(f"Pitcher-friendly park ({hrf:.2f})")
+
+    return {
+        "matchup": g.get("matchup"), "venue": g.get("venue"), "time_utc": g.get("time_utc"),
+        "temp_f": temp, "wind_mph": wind, "wind_label": wind_label,
+        "wind_dir_deg": _f(g, "wind_dir_deg"), "precip_pct": _f(g, "precip_pct"),
+        "roof": roof, "park_hr_factor": hrf,
+        "hr": hr, "tb": tb, "run": run,
+        "grade": grade_from_score(overall), "overall": int(round(overall)),
+        "reasons": reasons,
+    }
+
+
+def weather_board(games: List[dict]) -> dict:
+    scored = [weather_scores(g) for g in games]
+    return {
+        "games": sorted(scored, key=lambda x: -x["overall"]),
+        "top_hr": sorted(scored, key=lambda x: -x["hr"])[:5],
+        "top_tb": sorted(scored, key=lambda x: -x["tb"])[:5],
+        "top_run": sorted(scored, key=lambda x: -x["run"])[:5],
+        "bottom": sorted(scored, key=lambda x: x["overall"])[:5],
+    }
+
+
+# --------------------------------------------------------------------------- #
+# Phase 7 — Pitchers To Attack (full)
+# --------------------------------------------------------------------------- #
+def pitcher_attack(p: dict) -> dict:
+    hr9 = _f(p, "hr9")
+    hrfb = _f(p, "hrfb_pct")
+    barrel = _f(p, "barrel_pct_allowed")
+    hh = _f(p, "hardhit_pct_allowed")
+    ev = _f(p, "avg_ev_allowed")
+    k = _f(p, "k_pct")
+    whiff = _f(p, "whiff_pct")
+    fbu = _f(p, "fastball_usage")
+    fb = _f(p, "fb_pct")
+    small = str(p.get("small_sample")).lower() in ("true", "1")
+
+    def fr(x, lo, hi):
+        if x is None:
+            return None
+        return _clip((x - lo) / (hi - lo))
+
+    # HR-specific attackability
+    hr_comp = [(_pick(fr(hr9, 0.8, 1.8), 0.4), 30), (_pick(fr(hrfb, 9, 20), 0.4), 22),
+               (_pick(fr(barrel, 5, 12), 0.4), 18), (_pick(fr(fbu, 45, 70), 0.4), 14),
+               (_pick(fr(fb, 22, 40), 0.4), 8), (_pick(1 - (fr(k, 14, 30) or .5), 0.4), 8)]
+    hr_attack = int(_clip(sum(f * c for f, c in hr_comp), 0, 100))
+    # TB / overall contact attackability
+    tb_comp = [(_pick(fr(barrel, 5, 12), 0.4), 26), (_pick(fr(hh, 32, 46), 0.4), 24),
+               (_pick(fr(ev, 86, 92), 0.4), 20), (_pick(1 - (fr(k, 14, 30) or .5), 0.4), 16),
+               (_pick(1 - (fr(whiff, 18, 32) or .5), 0.4), 14)]
+    tb_attack = int(_clip(sum(f * c for f, c in tb_comp), 0, 100))
+    attack = int(round((hr_attack + tb_attack) / 2.0))
+
+    reasons, flags = [], []
+    if hr9 is not None and hr9 >= 1.3:
+        reasons.append(f"HR/9 {hr9:.2f}")
+    if hrfb is not None and hrfb >= 13:
+        reasons.append(f"HR/FB {hrfb:.0f}%")
+    if barrel is not None and barrel >= 8:
+        reasons.append(f"barrels allowed {barrel:.0f}%")
+    if hh is not None and hh >= 42:
+        reasons.append(f"hard-hit allowed {hh:.0f}%")
+    if ev is not None and ev >= 90:
+        reasons.append(f"EV allowed {ev:.1f}")
+    if k is not None and k < 20:
+        reasons.append(f"low K {k:.0f}%")
+    if fbu is not None and fbu >= 60:
+        reasons.append(f"fastball-heavy {fbu:.0f}%")
+    if k is not None and k >= 27:
+        flags.append(f"high K {k:.0f}% (misses bats)")
+    if barrel is not None and barrel < 6:
+        flags.append("limits hard contact")
+    if small:
+        flags.append("small sample")
+
+    # PENDING_BLOWUP: hard contact allowed but HR results lagging
+    hard = ((barrel is not None and barrel >= 8) or (hh is not None and hh >= 42)
+            or (ev is not None and ev >= 90))
+    pending = bool(hard and (hr9 is not None and hr9 < 1.1))
+    if pending:
+        reasons.append("PENDING BLOWUP (hard contact, HRs lagging)")
+
+    return {"attack": attack, "hr_attack": hr_attack, "tb_attack": tb_attack,
+            "grade": grade_from_score(attack), "stars": stars(attack),
+            "reasons": reasons, "red_flags": flags, "pending_blowup": pending}
+
+
+def _pick(v, default):
+    return default if v is None else v
+
+
+def pitcher_attack_table(pitchers: List[dict], games: List[dict]) -> dict:
+    sp_game = {}
+    for g in games:
+        for k in ("away_sp", "home_sp"):
+            if g.get(k):
+                sp_game[g[k]] = g.get("matchup", "")
+    rows = []
+    for p in pitchers:
+        if p.get("name") not in sp_game:     # only today's probables
+            continue
+        a = pitcher_attack(p)
+        rows.append({"name": p.get("name"), "game": sp_game.get(p.get("name"), ""),
+                     "throws": p.get("throws"), "hr9": _f(p, "hr9"), **a})
+    rows.sort(key=lambda r: -r["attack"])
+    return {
+        "all": rows,
+        "top10": rows[:10],
+        "best_hr": sorted(rows, key=lambda r: -r["hr_attack"])[:5],
+        "best_tb": sorted(rows, key=lambda r: -r["tb_attack"])[:5],
+        "avoid": [r for r in sorted(rows, key=lambda r: r["attack"]) if r["attack"] < 40][:5],
+        "pending": [r for r in rows if r["pending_blowup"]],
+    }
+
+
+# --------------------------------------------------------------------------- #
+# Phase 9 — Missed HR candidates
+# --------------------------------------------------------------------------- #
+def _missed_grade(ev, dist) -> str:
+    if ev is None or dist is None:
+        return "Moderate"            # flagged but detail not captured
+    if ev >= 106 and dist >= 400:
+        return "Extreme"
+    if ev >= 103 and dist >= 385:
+        return "High"
+    return "Moderate"
+
+
+def missed_hr_candidates(matchups: List[dict]) -> List[dict]:
+    out = []
+    for m in matchups:
+        flagged = (str(m.get("missed_hr")).lower() in ("true", "1")
+                   or "MISSED_HR" in tags_of(m))
+        if not flagged:
+            continue
+        ev = _f(m, "missed_hr_ev")
+        dist = _f(m, "missed_hr_dist")
+        out.append({
+            "batter": m.get("batter"), "team": m.get("team"), "batter_id": m.get("batter_id"),
+            "opp_team": m.get("opp_team"), "opp_sp": m.get("opp_sp"),
+            "date": m.get("missed_hr_date"), "ev": ev, "dist": dist,
+            "la": _f(m, "missed_hr_la"), "pitch": m.get("missed_hr_pitch"),
+            "grade": _missed_grade(ev, dist),
+            "detail": ev is not None,
+            "reasons": [r for r in [
+                f"Smoked one {ev:.0f} mph / {dist:.0f} ft that stayed in" if ev else
+                "Flagged missed-HR in recent window (detail not stored)",
+                f"vs {m.get('opp_sp') or m.get('opp_team')} today",
+            ] if r],
+        })
+    order = {"Extreme": 3, "High": 2, "Moderate": 1}
+    out.sort(key=lambda r: (order.get(r["grade"], 0), r["ev"] or 0), reverse=True)
+    return out
+
+
+# --------------------------------------------------------------------------- #
+# Phase 10 — Recent contact cluster
+# --------------------------------------------------------------------------- #
+def contact_clusters(matchups: List[dict]) -> List[dict]:
+    out = []
+    for m in matchups:
+        label = m.get("cluster_label")
+        e95, e100, e105 = _f(m, "ev95_w"), _f(m, "ev100_w"), _f(m, "ev105_w")
+        if not label and e100 is None and "HOT_CONTACT" not in tags_of(m):
+            continue
+        out.append({
+            "batter": m.get("batter"), "team": m.get("team"), "batter_id": m.get("batter_id"),
+            "opp_team": m.get("opp_team"), "opp_sp": m.get("opp_sp"),
+            "label": label or ("HOT" if "HOT_CONTACT" in tags_of(m) else "NORMAL"),
+            "score": int(_f(m, "cluster_score") or 0),
+            "ev95": int(e95) if e95 is not None else None,
+            "ev100": int(e100) if e100 is not None else None,
+            "ev105": int(e105) if e105 is not None else None,
+            "ev100_l5g": int(_f(m, "ev100_l5g")) if _f(m, "ev100_l5g") is not None else None,
+        })
+    rank = {"NUCLEAR": 4, "HOT": 3, "NORMAL": 2, "COLD": 1}
+    out.sort(key=lambda r: (rank.get(r["label"], 0), r["score"]), reverse=True)
+    return out

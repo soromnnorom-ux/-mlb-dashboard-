@@ -205,14 +205,70 @@ def api_home(date: str):
         return {"exists": False, "date": date}
     g, m = s["games"], s["matchups"]
     pitchers = _df_records(_out_dir() / date / "pitchers.csv")
+    wb = featured.weather_board(g)
+    missed = featured.missed_hr_candidates(m)
+    clusters = featured.contact_clusters(m)
+    pa = featured.pitcher_attack_table(pitchers, g)
     return {
         "exists": True, "date": date,
         "read": featured.slate_read(g, m, pitchers),
         "best5": featured.best5(m, pitchers, g),
         "top": {mk: featured.top_by_market(m, mk, 5) for mk in featured.MARKETS},
         "pitchers": featured.pitchers_to_attack(pitchers, g, 5),
+        "widgets": {
+            "best_hr_env": wb["top_hr"][0] if wb["top_hr"] else None,
+            "best_tb_env": wb["top_tb"][0] if wb["top_tb"] else None,
+            "worst_env": wb["bottom"][0] if wb["bottom"] else None,
+            "top_pitcher": pa["top10"][0] if pa["top10"] else None,
+            "best_missed_hr": missed[0] if missed else None,
+            "best_contact": clusters[0] if clusters else None,
+        },
         "meta": s.get("meta", {}),
     }
+
+
+@app.get("/api/weather/{date}")
+def api_weather(date: str):
+    from .. import featured
+    date = resolve_date(date)
+    s = _slate(date)
+    if not s["exists"]:
+        return {"exists": False, "date": date}
+    return {"exists": True, "date": date, **featured.weather_board(s["games"])}
+
+
+@app.get("/api/pitchers/{date}")
+def api_pitchers(date: str):
+    from .. import featured
+    date = resolve_date(date)
+    s = _slate(date)
+    if not s["exists"]:
+        return {"exists": False, "date": date}
+    pitchers = _df_records(_out_dir() / date / "pitchers.csv")
+    return {"exists": True, "date": date,
+            **featured.pitcher_attack_table(pitchers, s["games"])}
+
+
+@app.get("/api/missed-hr/{date}")
+def api_missed_hr(date: str):
+    from .. import featured
+    date = resolve_date(date)
+    s = _slate(date)
+    if not s["exists"]:
+        return {"exists": False, "date": date, "candidates": []}
+    return {"exists": True, "date": date,
+            "candidates": featured.missed_hr_candidates(s["matchups"])}
+
+
+@app.get("/api/contact/{date}")
+def api_contact(date: str):
+    from .. import featured
+    date = resolve_date(date)
+    s = _slate(date)
+    if not s["exists"]:
+        return {"exists": False, "date": date, "clusters": []}
+    return {"exists": True, "date": date,
+            "clusters": featured.contact_clusters(s["matchups"])}
 
 
 @app.get("/api/model/{date}")

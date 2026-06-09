@@ -160,6 +160,10 @@
   <button data-tab="model">My Model</button>
   <button data-tab="sheet">Cheat Sheet</button>
   <button data-tab="cards">Bet Cards</button>
+  <button data-tab="weather">Weather</button>
+  <button data-tab="pitchers">Pitchers</button>
+  <button data-tab="missed">Missed HR</button>
+  <button data-tab="contact">Contact</button>
   <button data-tab="slate">Slate</button>
   <button data-tab="matchups">Matchups</button>
   <button data-tab="ledger">Ledger</button>
@@ -212,6 +216,10 @@ function render(){
   if(STATE.tab==="glossary"){ return renderGlossary(); }
   if(STATE.tab==="home"){ return renderHome(); }
   if(STATE.tab==="model"){ return renderModel(); }
+  if(STATE.tab==="weather"){ return renderWeather(); }
+  if(STATE.tab==="pitchers"){ return renderPitchers(); }
+  if(STATE.tab==="missed"){ return renderMissed(); }
+  if(STATE.tab==="contact"){ return renderContact(); }
   if(!s || !s.exists){
     v.innerHTML=`<div class="empty">No data for <b>${STATE.date}</b>.<br/>Click <b>Run</b> to build this slate.</div>`;
     return;
@@ -480,7 +488,131 @@ async function renderHome(){
       <td><span class="gpill ${gradeCls(p.grade)}">${p.score} ${p.grade}</span></td>
       <td class="sp" style="color:#adbac7">${(p.reasons||[]).join(" · ")}</td></tr>`).join("")
     +`</tbody></table></div>`:`<div class="sp" style="color:var(--muted)">none</div>`;
-  $("#view").innerHTML=read+summaryStats+`<div class="best-grid">${cards}</div>`+tops;
+  const gr=r.grades||{};
+  const gradeRow=`<div class="banner">`+["HR","TB","HRR","Hits"].map(mk=>
+    `<div class="stat"><div class="n"><span class="gpill ${gradeCls(gr[mk])}">${gr[mk]||'-'}</span></div><div class="l">${mk} slate</div></div>`).join("")+`</div>`;
+  const w=h.widgets||{};
+  const widgets=`<div class="best-grid">
+    ${envWidget("Best HR Environment", w.best_hr_env, "hr")}
+    ${envWidget("Best TB Environment", w.best_tb_env, "tb")}
+    ${pWidget("Most Attackable Pitcher", w.top_pitcher)}
+    ${mWidget("Best Missed HR", w.best_missed_hr)}
+    ${cWidget("Best Contact Cluster", w.best_contact)}</div>`;
+  $("#view").innerHTML=read+gradeRow+summaryStats
+    +`<h3>Quick widgets</h3>`+widgets
+    +`<h3>Today's Best 5</h3><div class="best-grid">${cards}</div>`+tops;
+}
+function txtGrade(g){return {"Extreme":"g-Ap","High":"g-A","Moderate":"g-B","None":"g-D",
+  "NUCLEAR":"g-Ap","HOT":"g-A","NORMAL":"g-B","COLD":"g-D"}[g]||"g-C";}
+function envWidget(label,e,kind){
+  if(!e) return `<div class="bcard"><div class="lbl">${label}</div><div class="sub" style="margin-top:14px">n/a</div></div>`;
+  const sc=kind==="hr"?e.hr:e.tb;
+  return `<div class="bcard"><div class="lbl">${label}</div>
+    <div class="big"><div class="sc ${gradeCls(e.grade)}" style="background:none;padding:0">${sc}</div></div>
+    <div class="nm" style="margin-top:6px">${e.matchup}</div><div class="sub">${e.venue||""}</div>
+    ${whyList((e.reasons||[]).slice(0,2))}</div>`;
+}
+function pWidget(label,p){
+  if(!p) return `<div class="bcard"><div class="lbl">${label}</div><div class="sub" style="margin-top:14px">n/a</div></div>`;
+  return `<div class="bcard"><div class="lbl">${label}</div>
+    <div class="big"><div class="sc ${gradeCls(p.grade)}" style="background:none;padding:0">${p.attack}</div></div>
+    <div class="nm" style="margin-top:6px">${p.name}</div><div class="sub">${p.game||""}</div>
+    ${whyList((p.reasons||[]).slice(0,2))}</div>`;
+}
+function mWidget(label,c){
+  if(!c) return `<div class="bcard"><div class="lbl">${label}</div><div class="sub" style="margin-top:14px">none today</div></div>`;
+  const det=c.detail?`${c.ev} mph / ${c.dist} ft`:"flagged (detail n/a)";
+  return `<div class="bcard"><div class="lbl">${label}</div>
+    <div class="big"><span class="gpill ${txtGrade(c.grade)}">${c.grade}</span></div>
+    <div class="nm" style="margin-top:6px">${c.batter}</div>
+    <div class="sub">${c.team} vs ${c.opp_sp||c.opp_team} · ${det}</div></div>`;
+}
+function cWidget(label,c){
+  if(!c) return `<div class="bcard"><div class="lbl">${label}</div><div class="sub" style="margin-top:14px">n/a (run with Statcast)</div></div>`;
+  return `<div class="bcard"><div class="lbl">${label}</div>
+    <div class="big"><span class="gpill ${txtGrade(c.label)}">${c.label}</span></div>
+    <div class="nm" style="margin-top:6px">${c.batter}</div>
+    <div class="sub">${c.team} · 95+ ${c.ev95??'–'} · 100+ ${c.ev100??'–'} · 105+ ${c.ev105??'–'}</div></div>`;
+}
+
+async function renderWeather(){
+  $("#view").innerHTML=`<div class="empty">Loading…</div>`;
+  let d; try{ d=await api("/api/weather/"+STATE.date);}catch(e){ d={exists:false}; }
+  if(!d.exists){ $("#view").innerHTML=`<div class="empty">No data. Click <b>Run</b>.</div>`; return; }
+  const board=(title,rows,kind)=>`<h3>${title}</h3><div class="panel"><table><thead><tr>
+    <th>Game</th><th>Score</th><th>Why</th></tr></thead><tbody>`+
+    rows.map(e=>`<tr><td><b>${e.matchup}</b></td>
+      <td><span class="gpill ${gradeCls(e.grade)}">${kind==='hr'?e.hr:kind==='tb'?e.tb:kind==='run'?e.run:e.overall} ${e.grade}</span></td>
+      <td class="sp" style="color:#adbac7">${(e.reasons||[]).join(" · ")}</td></tr>`).join("")+`</tbody></table></div>`;
+  const full=`<h3>All games</h3><div class="panel"><table class="cs"><thead><tr>
+    <th>Game</th><th>Venue</th><th>Temp</th><th>Wind</th><th>Roof</th><th>Park</th>
+    <th>HR</th><th>TB</th><th>Run</th><th>Grade</th><th>Why</th></tr></thead><tbody>`+
+    d.games.map(e=>`<tr><td><b>${e.matchup}</b></td><td class="sp">${e.venue||""}</td>
+      <td class="mono">${e.temp_f??'–'}°</td>
+      <td>${e.wind_mph??'–'} mph ${e.wind_label}</td><td>${e.roof}</td>
+      <td class="mono">${e.park_hr_factor??'–'}</td>
+      ${heatCell(e.hr,30,80,v=>v.toFixed(0))}${heatCell(e.tb,30,80,v=>v.toFixed(0))}${heatCell(e.run,30,80,v=>v.toFixed(0))}
+      <td><span class="gpill ${gradeCls(e.grade)}">${e.grade}</span></td>
+      <td class="sp" style="color:#adbac7">${(e.reasons||[]).slice(0,3).join(" · ")}</td></tr>`).join("")+`</tbody></table></div>`;
+  $("#view").innerHTML=board("Top 5 HR Environments",d.top_hr,"hr")
+    +board("Top 5 TB Environments",d.top_tb,"tb")
+    +board("Top 5 Run Environments",d.top_run,"run")
+    +board("Bottom 5 Hitting Environments",d.bottom,"overall")+full;
+}
+
+async function renderPitchers(){
+  $("#view").innerHTML=`<div class="empty">Loading…</div>`;
+  let d; try{ d=await api("/api/pitchers/"+STATE.date);}catch(e){ d={exists:false}; }
+  if(!d.exists){ $("#view").innerHTML=`<div class="empty">No data. Click <b>Run</b>.</div>`; return; }
+  const tbl=(title,rows,key)=>!rows.length?"":`<h3>${title}</h3><div class="panel"><table><thead><tr>
+    <th>#</th><th>Pitcher</th><th>Game</th><th>Score</th><th>HR atk</th><th>TB atk</th><th>Why</th><th>Flags</th></tr></thead><tbody>`+
+    rows.map((p,i)=>`<tr><td class="rk">${i+1}</td><td><b>${p.name}</b> <span class="sp">${p.throws||''}</span></td>
+      <td>${p.game}</td><td><span class="gpill ${gradeCls(p.grade)}">${p[key||'attack']} ${p.grade}</span></td>
+      <td class="mono">${p.hr_attack}</td><td class="mono">${p.tb_attack}</td>
+      <td class="sp" style="color:#adbac7">${(p.reasons||[]).slice(0,3).join(" · ")}</td>
+      <td class="sp" style="color:#e0a0a0">${(p.red_flags||[]).join(" · ")}</td></tr>`).join("")+`</tbody></table></div>`;
+  let html=tbl("Top 10 Most Attackable",d.top10)
+    +tbl("Best HR Pitchers To Attack",d.best_hr,"hr_attack")
+    +tbl("Best TB Pitchers To Attack",d.best_tb,"tb_attack");
+  if(d.pending.length) html+=tbl("⏳ Pending Blowups",d.pending);
+  html+= d.avoid.length? tbl("Pitchers To Avoid",d.avoid) : `<h3>Pitchers To Avoid</h3><div class="sp" style="color:var(--muted)">none flagged</div>`;
+  $("#view").innerHTML=html;
+}
+
+async function renderMissed(){
+  $("#view").innerHTML=`<div class="empty">Loading…</div>`;
+  let d; try{ d=await api("/api/missed-hr/"+STATE.date);}catch(e){ d={exists:false}; }
+  if(!d.exists){ $("#view").innerHTML=`<div class="empty">No data. Click <b>Run</b>.</div>`; return; }
+  if(!d.candidates.length){ $("#view").innerHTML=`<div class="empty">No missed-HR candidates flagged for this slate.<br/>
+    <span class="sp">(Requires a Statcast run — EV≥100, dist≥370 ft, LA 20-38°, not a HR.)</span></div>`; return; }
+  const rows=d.candidates.map(c=>`<tr>
+    <td><div class="pl"><img loading="lazy" src="${headshot(c.batter_id)}" onerror="this.style.visibility='hidden'"/>
+      <div><div class="nm">${c.batter}</div><div class="tm">${c.team}</div></div></div></td>
+    <td>${c.date||'–'}</td><td class="mono">${c.ev??'–'}</td><td class="mono">${c.la??'–'}</td>
+    <td class="mono">${c.dist??'–'}</td><td>${c.pitch||'–'}</td>
+    <td>${c.opp_team} · ${c.opp_sp||'TBD'}</td>
+    <td><span class="gpill ${txtGrade(c.grade)}">${c.grade}</span></td></tr>`).join("");
+  $("#view").innerHTML=`<h3>Missed HR Candidates (${d.candidates.length})</h3>
+    <div class="panel"><table class="cs"><thead><tr><th>Player</th><th>Date</th><th>EV</th><th>LA</th>
+    <th>Dist</th><th>Pitch</th><th>Today vs</th><th>Grade</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+async function renderContact(){
+  $("#view").innerHTML=`<div class="empty">Loading…</div>`;
+  let d; try{ d=await api("/api/contact/"+STATE.date);}catch(e){ d={exists:false}; }
+  if(!d.exists){ $("#view").innerHTML=`<div class="empty">No data. Click <b>Run</b>.</div>`; return; }
+  if(!d.clusters.length){ $("#view").innerHTML=`<div class="empty">No contact-cluster data for this slate.<br/>
+    <span class="sp">(Requires a Statcast run.)</span></div>`; return; }
+  const rows=d.clusters.map(c=>`<tr>
+    <td><div class="pl"><img loading="lazy" src="${headshot(c.batter_id)}" onerror="this.style.visibility='hidden'"/>
+      <div><div class="nm">${c.batter}</div><div class="tm">${c.team} vs ${c.opp_sp||c.opp_team}</div></div></div></td>
+    <td><span class="gpill ${txtGrade(c.label)}">${c.label}</span></td>
+    <td class="mono">${c.ev95??'–'}</td><td class="mono">${c.ev100??'–'}</td><td class="mono">${c.ev105??'–'}</td>
+    <td class="mono">${c.ev100_l5g??'–'}</td><td class="mono">${c.score}</td></tr>`).join("");
+  $("#view").innerHTML=`<h3>Recent Contact Clusters (${d.clusters.length})</h3>
+    <div class="sp" style="color:var(--muted);margin-bottom:8px">EV counts over the recent window · L5g = 100+ EV in last 5 games</div>
+    <div class="panel"><table class="cs"><thead><tr><th>Player</th><th>Cluster</th>
+    <th>95+</th><th>100+</th><th>105+</th><th>100+ L5g</th><th>Score</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
 async function renderModel(){

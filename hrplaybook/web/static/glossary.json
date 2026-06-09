@@ -3,72 +3,460 @@
     {
       "title": "Player & matchup",
       "terms": [
-        {"abbr": "PLAYER", "name": "Player", "meaning": "The batter.", "why": "Who you're betting.", "good": "", "bad": ""},
-        {"abbr": "TM", "name": "Team", "meaning": "Player's team.", "why": "Identifies the side at bat.", "good": "", "bad": ""},
-        {"abbr": "OPP", "name": "Opponent", "meaning": "Opposing team.", "why": "Who they face today.", "good": "", "bad": ""},
-        {"abbr": "SP", "name": "Starting Pitcher", "meaning": "Opposing probable starter.", "why": "The pitcher you're attacking; drives most of the matchup edge.", "good": "", "bad": ""},
-        {"abbr": "SPOT", "name": "Lineup Spot", "meaning": "Batting-order position (1-9).", "why": "Top-of-order bats get more plate appearances = more chances.", "good": "1-5", "bad": "8-9"},
-        {"abbr": "PLT", "name": "Platoon", "meaning": "Batter hand vs pitcher hand edge (✓ favorable, ✗ unfavorable).", "why": "Hitters generally do more damage with the platoon advantage (e.g. LHB vs RHP).", "good": "✓ favorable", "bad": "✗ unfavorable"},
-        {"abbr": "LINEUP", "name": "Lineup Status", "meaning": "confirmed | projected | unknown.", "why": "Projected lineups can change; confirmed are locked.", "good": "confirmed", "bad": "projected/unknown"}
+        {
+          "abbr": "PLAYER",
+          "name": "Player",
+          "meaning": "The batter.",
+          "why": "Who you're betting.",
+          "good": "",
+          "bad": ""
+        },
+        {
+          "abbr": "TM",
+          "name": "Team",
+          "meaning": "Player's team.",
+          "why": "Identifies the side at bat.",
+          "good": "",
+          "bad": ""
+        },
+        {
+          "abbr": "OPP",
+          "name": "Opponent",
+          "meaning": "Opposing team.",
+          "why": "Who they face today.",
+          "good": "",
+          "bad": ""
+        },
+        {
+          "abbr": "SP",
+          "name": "Starting Pitcher",
+          "meaning": "Opposing probable starter.",
+          "why": "The pitcher you're attacking; drives most of the matchup edge.",
+          "good": "",
+          "bad": ""
+        },
+        {
+          "abbr": "SPOT",
+          "name": "Lineup Spot",
+          "meaning": "Batting-order position (1-9).",
+          "why": "Top-of-order bats get more plate appearances = more chances.",
+          "good": "1-5",
+          "bad": "8-9"
+        },
+        {
+          "abbr": "PLT",
+          "name": "Platoon",
+          "meaning": "Batter hand vs pitcher hand edge (\u2713 favorable, \u2717 unfavorable).",
+          "why": "Hitters generally do more damage with the platoon advantage (e.g. LHB vs RHP).",
+          "good": "\u2713 favorable",
+          "bad": "\u2717 unfavorable"
+        },
+        {
+          "abbr": "LINEUP",
+          "name": "Lineup Status",
+          "meaning": "confirmed | projected | unknown.",
+          "why": "Projected lineups can change; confirmed are locked.",
+          "good": "confirmed",
+          "bad": "projected/unknown"
+        }
       ]
     },
     {
       "title": "Environment",
       "terms": [
-        {"abbr": "ENV", "name": "Environment Grade", "meaning": "Hitting environment from park, temperature, wind and roof.", "why": "Ballpark + weather can add or kill home-run/extra-base chances before a pitch is thrown.", "good": "elite / good", "bad": "dead-air"},
-        {"abbr": "Park Factor", "name": "Park HR Factor", "meaning": "Stadium's HR tendency (1.00 = neutral).", "why": "Coors/GABP inflate HRs; Oracle/Petco suppress them.", "good": ">1.05", "bad": "<0.95"},
-        {"abbr": "Wind Out", "name": "Wind blowing out", "meaning": "Wind direction relative to home→CF.", "why": "Wind out carries fly balls over the fence; wind in knocks them down.", "good": "out 10+ mph", "bad": "in 10+ mph"}
+        {
+          "abbr": "ENV",
+          "name": "Environment Grade",
+          "meaning": "Hitting environment from park, temperature, wind and roof.",
+          "why": "Ballpark + weather can add or kill home-run/extra-base chances before a pitch is thrown.",
+          "good": "elite / good",
+          "bad": "dead-air"
+        },
+        {
+          "abbr": "Park Factor",
+          "name": "Park HR Factor",
+          "meaning": "Stadium's HR tendency (1.00 = neutral).",
+          "why": "Coors/GABP inflate HRs; Oracle/Petco suppress them.",
+          "good": ">1.05",
+          "bad": "<0.95"
+        },
+        {
+          "abbr": "Wind Out",
+          "name": "Wind blowing out",
+          "meaning": "Wind direction relative to home\u2192CF.",
+          "why": "Wind out carries fly balls over the fence; wind in knocks them down.",
+          "good": "out 10+ mph",
+          "bad": "in 10+ mph"
+        }
       ]
     },
     {
       "title": "Pitcher matchup",
       "terms": [
-        {"abbr": "SPΔ", "name": "SP Weakness Score", "meaning": "How attackable the starter is (HR/9, HR/FB, barrels & hard contact allowed, low K/whiff, fastball-heavy).", "why": "You attack vulnerable pitchers, not chase hot hitters.", "good": "≥3", "bad": "≤0"},
-        {"abbr": "HR/9", "name": "Home Runs per 9 IP", "meaning": "HRs allowed per nine innings.", "why": "Direct measure of how often a pitcher gives up homers.", "good": "≥1.5 (attack)", "bad": "<1.0"},
-        {"abbr": "HR/FB %", "name": "HR per Fly Ball %", "meaning": "Share of fly balls allowed that become HRs.", "why": "High = home-run prone.", "good": "≥15%", "bad": "<10%"},
-        {"abbr": "Whiff %", "name": "Whiff Rate", "meaning": "Swings-and-misses per swing.", "why": "Low whiff = hittable = more balls in play to do damage.", "good": "low (<23%) to attack", "bad": "high"},
-        {"abbr": "K %", "name": "Strikeout Rate", "meaning": "Share of batters struck out.", "why": "Low K pitchers let hitters put the ball in play.", "good": "low (<20%) to attack", "bad": "high"}
+        {
+          "abbr": "SP\u0394",
+          "name": "SP Weakness Score",
+          "meaning": "How attackable the starter is (HR/9, HR/FB, barrels & hard contact allowed, low K/whiff, fastball-heavy).",
+          "why": "You attack vulnerable pitchers, not chase hot hitters.",
+          "good": "\u22653",
+          "bad": "\u22640"
+        },
+        {
+          "abbr": "HR/9",
+          "name": "Home Runs per 9 IP",
+          "meaning": "HRs allowed per nine innings.",
+          "why": "Direct measure of how often a pitcher gives up homers.",
+          "good": "\u22651.5 (attack)",
+          "bad": "<1.0"
+        },
+        {
+          "abbr": "HR/FB %",
+          "name": "HR per Fly Ball %",
+          "meaning": "Share of fly balls allowed that become HRs.",
+          "why": "High = home-run prone.",
+          "good": "\u226515%",
+          "bad": "<10%"
+        },
+        {
+          "abbr": "Whiff %",
+          "name": "Whiff Rate",
+          "meaning": "Swings-and-misses per swing.",
+          "why": "Low whiff = hittable = more balls in play to do damage.",
+          "good": "low (<23%) to attack",
+          "bad": "high"
+        },
+        {
+          "abbr": "K %",
+          "name": "Strikeout Rate",
+          "meaning": "Share of batters struck out.",
+          "why": "Low K pitchers let hitters put the ball in play.",
+          "good": "low (<20%) to attack",
+          "bad": "high"
+        }
       ]
     },
     {
       "title": "Pitch mix & contact quality",
       "terms": [
-        {"abbr": "B%PM", "name": "Barrel % vs Pitch Mix", "meaning": "How often the batter barrels the pitch types this starter throws most.", "why": "The core matchup edge — ties batter power to what this specific pitcher actually throws.", "good": "10%+ good, 15%+ strong, 20%+ elite", "bad": "<8%"},
-        {"abbr": "B%H", "name": "Barrel % vs Hand", "meaning": "Barrel rate against the starter's handedness (L/R).", "why": "Some hitters crush one hand and struggle vs the other.", "good": "15%+", "bad": "<8%"},
-        {"abbr": "EV", "name": "Exit Velocity", "meaning": "Average batted-ball speed (mph).", "why": "Harder contact = more extra-base damage.", "good": "≥90 (102+ elite)", "bad": "<87"},
-        {"abbr": "Max EV", "name": "Max Exit Velocity", "meaning": "Hardest batted ball.", "why": "Raw power ceiling.", "good": "≥112", "bad": "<105"},
-        {"abbr": "LA", "name": "Launch Angle", "meaning": "Average vertical angle of contact (°).", "why": "HR sweet spot is ~25-33°; too low = grounders, too high = popups.", "good": "12-20 avg", "bad": "<5 or >25"},
-        {"abbr": "Barrel %", "name": "Barrel Rate", "meaning": "Share of batted balls with ideal EV+LA (barrels).", "why": "Best single predictor of power production.", "good": "≥10% (15%+ elite)", "bad": "<6%"},
-        {"abbr": "Hard Hit %", "name": "Hard-Hit Rate", "meaning": "Share of batted balls 95+ mph.", "why": "Sustained loud contact.", "good": "≥45% (50%+ elite)", "bad": "<35%"},
-        {"abbr": "Sweet Spot %", "name": "Sweet-Spot Rate", "meaning": "Share of batted balls at 8-32° LA.", "why": "Productive launch angles.", "good": "≥35%", "bad": "<28%"},
-        {"abbr": "ISO", "name": "Isolated Power", "meaning": "SLG minus AVG — extra bases per AB.", "why": "Pure power independent of singles.", "good": "≥.200", "bad": "<.140"},
-        {"abbr": "xSLG", "name": "Expected SLG", "meaning": "Slugging the contact 'deserved' by EV/LA.", "why": "Strips out luck/defense.", "good": "≥.500", "bad": "<.380"},
-        {"abbr": "xwOBA", "name": "Expected wOBA", "meaning": "Expected overall offensive value per PA.", "why": "Best all-in-one contact-quality metric.", "good": "≥.360", "bad": "<.310"},
-        {"abbr": "Fly Ball %", "name": "Fly-Ball Rate", "meaning": "Share of batted balls in the air.", "why": "You can't homer on the ground.", "good": "≥35%", "bad": "<25%"},
-        {"abbr": "Pull %", "name": "Pull Rate", "meaning": "Share of batted balls pulled.", "why": "Most HRs are pulled.", "good": "≥40%", "bad": "<30%"}
+        {
+          "abbr": "B%PM",
+          "name": "Barrel % vs Pitch Mix",
+          "meaning": "How often the batter barrels the pitch types this starter throws most.",
+          "why": "The core matchup edge \u2014 ties batter power to what this specific pitcher actually throws.",
+          "good": "10%+ good, 15%+ strong, 20%+ elite",
+          "bad": "<8%"
+        },
+        {
+          "abbr": "B%H",
+          "name": "Barrel % vs Hand",
+          "meaning": "Barrel rate against the starter's handedness (L/R).",
+          "why": "Some hitters crush one hand and struggle vs the other.",
+          "good": "15%+",
+          "bad": "<8%"
+        },
+        {
+          "abbr": "EV",
+          "name": "Exit Velocity",
+          "meaning": "Average batted-ball speed (mph).",
+          "why": "Harder contact = more extra-base damage.",
+          "good": "\u226590 (102+ elite)",
+          "bad": "<87"
+        },
+        {
+          "abbr": "Max EV",
+          "name": "Max Exit Velocity",
+          "meaning": "Hardest batted ball.",
+          "why": "Raw power ceiling.",
+          "good": "\u2265112",
+          "bad": "<105"
+        },
+        {
+          "abbr": "LA",
+          "name": "Launch Angle",
+          "meaning": "Average vertical angle of contact (\u00b0).",
+          "why": "HR sweet spot is ~25-33\u00b0; too low = grounders, too high = popups.",
+          "good": "12-20 avg",
+          "bad": "<5 or >25"
+        },
+        {
+          "abbr": "Barrel %",
+          "name": "Barrel Rate",
+          "meaning": "Share of batted balls with ideal EV+LA (barrels).",
+          "why": "Best single predictor of power production.",
+          "good": "\u226510% (15%+ elite)",
+          "bad": "<6%"
+        },
+        {
+          "abbr": "Hard Hit %",
+          "name": "Hard-Hit Rate",
+          "meaning": "Share of batted balls 95+ mph.",
+          "why": "Sustained loud contact.",
+          "good": "\u226545% (50%+ elite)",
+          "bad": "<35%"
+        },
+        {
+          "abbr": "Sweet Spot %",
+          "name": "Sweet-Spot Rate",
+          "meaning": "Share of batted balls at 8-32\u00b0 LA.",
+          "why": "Productive launch angles.",
+          "good": "\u226535%",
+          "bad": "<28%"
+        },
+        {
+          "abbr": "ISO",
+          "name": "Isolated Power",
+          "meaning": "SLG minus AVG \u2014 extra bases per AB.",
+          "why": "Pure power independent of singles.",
+          "good": "\u2265.200",
+          "bad": "<.140"
+        },
+        {
+          "abbr": "xSLG",
+          "name": "Expected SLG",
+          "meaning": "Slugging the contact 'deserved' by EV/LA.",
+          "why": "Strips out luck/defense.",
+          "good": "\u2265.500",
+          "bad": "<.380"
+        },
+        {
+          "abbr": "xwOBA",
+          "name": "Expected wOBA",
+          "meaning": "Expected overall offensive value per PA.",
+          "why": "Best all-in-one contact-quality metric.",
+          "good": "\u2265.360",
+          "bad": "<.310"
+        },
+        {
+          "abbr": "Fly Ball %",
+          "name": "Fly-Ball Rate",
+          "meaning": "Share of batted balls in the air.",
+          "why": "You can't homer on the ground.",
+          "good": "\u226535%",
+          "bad": "<25%"
+        },
+        {
+          "abbr": "Pull %",
+          "name": "Pull Rate",
+          "meaning": "Share of batted balls pulled.",
+          "why": "Most HRs are pulled.",
+          "good": "\u226540%",
+          "bad": "<30%"
+        }
       ]
     },
     {
       "title": "Model probabilities & value",
       "terms": [
-        {"abbr": "HR%", "name": "Model HR Probability", "meaning": "Model's estimated chance of ≥1 home run today.", "why": "The headline number for HR bets.", "good": "≥15%", "bad": "<6%"},
-        {"abbr": "TB%", "name": "Model 2+ TB Probability", "meaning": "Model's estimated chance of 2+ total bases.", "why": "The headline number for the bread-and-butter TB bet.", "good": "≥55%", "bad": "<40%"},
-        {"abbr": "Implied Probability", "name": "Implied Probability", "meaning": "Win probability baked into the sportsbook odds.", "why": "What the market thinks; compare to the model.", "good": "model > implied", "bad": "model < implied"},
-        {"abbr": "Edge %", "name": "Edge", "meaning": "Model probability minus implied probability.", "why": "Positive edge = the bet is mispriced in your favor.", "good": ">5%", "bad": "negative"},
-        {"abbr": "VAL", "name": "Value Grade", "meaning": "+EV | fair | -EV from model vs odds.", "why": "Tells you if the price is actually worth it.", "good": "+EV", "bad": "-EV"},
-        {"abbr": "CLV", "name": "Closing Line Value", "meaning": "Your odds vs the closing line.", "why": "Beating the close is the best long-run proxy for skill.", "good": "positive", "bad": "negative"},
-        {"abbr": "ROI", "name": "Return on Investment", "meaning": "Profit per unit staked.", "why": "Did the picks actually make money.", "good": ">0%", "bad": "<0%"}
+        {
+          "abbr": "HR%",
+          "name": "Model HR Probability",
+          "meaning": "Model's estimated chance of \u22651 home run today.",
+          "why": "The headline number for HR bets.",
+          "good": "\u226515%",
+          "bad": "<6%"
+        },
+        {
+          "abbr": "TB%",
+          "name": "Model 2+ TB Probability",
+          "meaning": "Model's estimated chance of 2+ total bases.",
+          "why": "The headline number for the bread-and-butter TB bet.",
+          "good": "\u226555%",
+          "bad": "<40%"
+        },
+        {
+          "abbr": "Implied Probability",
+          "name": "Implied Probability",
+          "meaning": "Win probability baked into the sportsbook odds.",
+          "why": "What the market thinks; compare to the model.",
+          "good": "model > implied",
+          "bad": "model < implied"
+        },
+        {
+          "abbr": "Edge %",
+          "name": "Edge",
+          "meaning": "Model probability minus implied probability.",
+          "why": "Positive edge = the bet is mispriced in your favor.",
+          "good": ">5%",
+          "bad": "negative"
+        },
+        {
+          "abbr": "VAL",
+          "name": "Value Grade",
+          "meaning": "+EV | fair | -EV from model vs odds.",
+          "why": "Tells you if the price is actually worth it.",
+          "good": "+EV",
+          "bad": "-EV"
+        },
+        {
+          "abbr": "CLV",
+          "name": "Closing Line Value",
+          "meaning": "Your odds vs the closing line.",
+          "why": "Beating the close is the best long-run proxy for skill.",
+          "good": "positive",
+          "bad": "negative"
+        },
+        {
+          "abbr": "ROI",
+          "name": "Return on Investment",
+          "meaning": "Profit per unit staked.",
+          "why": "Did the picks actually make money.",
+          "good": ">0%",
+          "bad": "<0%"
+        }
       ]
     },
     {
       "title": "Edge tags",
       "terms": [
-        {"abbr": "MISSED_HR", "name": "Missed HR", "meaning": "Recently smoked a ball (100+ EV, 380+ ft) that wasn't a HR.", "why": "Bounce-back power — target who should have homered.", "good": "present", "bad": ""},
-        {"abbr": "HOT_CONTACT", "name": "Hot Contact", "meaning": "Cluster of 95+ EV batted balls recently.", "why": "Locked-in contact quality right now.", "good": "present", "bad": ""},
-        {"abbr": "LATE_HR", "name": "Late HR / Weak Bullpen", "meaning": "Opponent bullpen gives up HRs.", "why": "Extra HR chances after the starter exits.", "good": "present", "bad": ""},
-        {"abbr": "REGRESSION_SPOT", "name": "Regression Spot", "meaning": "Pitcher allows loud contact but few HRs so far.", "why": "Pending blow-up — results should catch up to the contact.", "good": "present", "bad": ""},
-        {"abbr": "BvP", "name": "Batter vs Pitcher", "meaning": "Direct history vs this pitcher.", "why": "Minor supporting context only — small samples mislead.", "good": "16+ PA", "bad": "0-2 PA"},
-        {"abbr": "NO_METRICS", "name": "No Metrics", "meaning": "Player not matched to Statcast data.", "why": "Treat with caution — below leaderboard threshold or name mismatch.", "good": "", "bad": "present"}
+        {
+          "abbr": "MISSED_HR",
+          "name": "Missed HR",
+          "meaning": "Recently smoked a ball (100+ EV, 380+ ft) that wasn't a HR.",
+          "why": "Bounce-back power \u2014 target who should have homered.",
+          "good": "present",
+          "bad": ""
+        },
+        {
+          "abbr": "HOT_CONTACT",
+          "name": "Hot Contact",
+          "meaning": "Cluster of 95+ EV batted balls recently.",
+          "why": "Locked-in contact quality right now.",
+          "good": "present",
+          "bad": ""
+        },
+        {
+          "abbr": "LATE_HR",
+          "name": "Late HR / Weak Bullpen",
+          "meaning": "Opponent bullpen gives up HRs.",
+          "why": "Extra HR chances after the starter exits.",
+          "good": "present",
+          "bad": ""
+        },
+        {
+          "abbr": "REGRESSION_SPOT",
+          "name": "Regression Spot",
+          "meaning": "Pitcher allows loud contact but few HRs so far.",
+          "why": "Pending blow-up \u2014 results should catch up to the contact.",
+          "good": "present",
+          "bad": ""
+        },
+        {
+          "abbr": "BvP",
+          "name": "Batter vs Pitcher",
+          "meaning": "Direct history vs this pitcher.",
+          "why": "Minor supporting context only \u2014 small samples mislead.",
+          "good": "16+ PA",
+          "bad": "0-2 PA"
+        },
+        {
+          "abbr": "NO_METRICS",
+          "name": "No Metrics",
+          "meaning": "Player not matched to Statcast data.",
+          "why": "Treat with caution \u2014 below leaderboard threshold or name mismatch.",
+          "good": "",
+          "bad": "present"
+        }
+      ]
+    },
+    {
+      "title": "Weather, pitchers & contact (V2)",
+      "terms": [
+        {
+          "abbr": "HR Weather",
+          "name": "HR Weather Score",
+          "meaning": "0-100 home-run friendliness of the park+weather (temp, wind out/in, park factor; dome=neutral).",
+          "why": "Sets HR expectation before any hitter is considered.",
+          "good": "\u226570",
+          "bad": "\u226435"
+        },
+        {
+          "abbr": "TB Weather",
+          "name": "TB Weather Score",
+          "meaning": "0-100 extra-base friendliness of the environment.",
+          "why": "Total-bases lean tracks run environment more than pure HR.",
+          "good": "\u226565",
+          "bad": "\u226440"
+        },
+        {
+          "abbr": "Run Env",
+          "name": "Run Environment Score",
+          "meaning": "0-100 overall run-scoring conditions.",
+          "why": "High = more offense, helps TB/HRR.",
+          "good": "\u226565",
+          "bad": "\u226440"
+        },
+        {
+          "abbr": "Pitcher Attack",
+          "name": "Pitcher Attack Score",
+          "meaning": "0-100 how attackable a starter is (HR/9, HR/FB, barrels & hard contact allowed, EV allowed, low K/whiff, fastball-heavy).",
+          "why": "You attack vulnerable starters first.",
+          "good": "\u226565 (A/B)",
+          "bad": "<40 (avoid)"
+        },
+        {
+          "abbr": "HR atk",
+          "name": "HR Attack Score",
+          "meaning": "Pitcher attackability weighted for home runs.",
+          "why": "Ranks the best starters to target for HR.",
+          "good": "\u226565",
+          "bad": "<40"
+        },
+        {
+          "abbr": "TB atk",
+          "name": "TB Attack Score",
+          "meaning": "Pitcher attackability weighted for total bases / hard contact.",
+          "why": "Ranks starters to target for TB.",
+          "good": "\u226565",
+          "bad": "<40"
+        },
+        {
+          "abbr": "PENDING_BLOWUP",
+          "name": "Pending Blowup",
+          "meaning": "Pitcher allows loud contact (barrels/EV/hard-hit) but HR results lag (HR/9<1.1).",
+          "why": "Results should regress toward the contact \u2014 a blow-up is due.",
+          "good": "present (attack)",
+          "bad": ""
+        },
+        {
+          "abbr": "Missed HR Grade",
+          "name": "Missed HR Grade",
+          "meaning": "Strength of a stayed-in-park missed homer: Moderate / High / Extreme (by EV+distance).",
+          "why": "Bigger missed bombs = stronger bounce-back signal.",
+          "good": "High / Extreme",
+          "bad": "None"
+        },
+        {
+          "abbr": "Cluster",
+          "name": "Recent Contact Cluster",
+          "meaning": "Recent loud-contact state: COLD / NORMAL / HOT / NUCLEAR (from 95/100/105+ EV counts).",
+          "why": "Captures who is locked in right now.",
+          "good": "HOT / NUCLEAR",
+          "bad": "COLD"
+        },
+        {
+          "abbr": "NUCLEAR_CONTACT",
+          "name": "Nuclear Contact",
+          "meaning": "Multiple 105+ EV balls or 4+ 100+ EV in last 5 games.",
+          "why": "Elite current contact quality.",
+          "good": "present",
+          "bad": ""
+        },
+        {
+          "abbr": "MULTIPLE_100_EV",
+          "name": "Multiple 100+ EV",
+          "meaning": "\u22652 batted balls 100+ mph in the recent window.",
+          "why": "Repeated top-end contact.",
+          "good": "present",
+          "bad": ""
+        },
+        {
+          "abbr": "COLD_CONTACT",
+          "name": "Cold Contact",
+          "meaning": "No 95+ EV balls in the last 5 games.",
+          "why": "Contact has gone quiet \u2014 fade.",
+          "good": "",
+          "bad": "present"
+        }
       ]
     }
   ]
