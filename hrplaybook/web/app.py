@@ -205,12 +205,12 @@ def api_home(date: str):
         return {"exists": False, "date": date}
     g, m = s["games"], s["matchups"]
     pitchers = _df_records(_out_dir() / date / "pitchers.csv")
-    from .. import calibration, manual_odds, performance, value_center
+    from .. import calibration, manual_odds, odds_api, performance, value_center
     wb = featured.weather_board(g)
     missed = featured.missed_hr_candidates(m)
     clusters = featured.contact_clusters(m)
     pa = featured.pitcher_attack_table(pitchers, g)
-    val = value_center.market_vs_model(m, manual_odds.load(date), api=None,
+    val = value_center.market_vs_model(m, manual_odds.load(date), api=odds_api.load(date),
                                        tables=calibration.load_tables(_out_dir()))
     return {
         "exists": True, "date": date,
@@ -348,10 +348,11 @@ def api_value(date: str):
     s = _slate(date)
     if not s["exists"]:
         return {"exists": False, "date": date}
-    from .. import calibration
+    from .. import calibration, odds_api
     tables = calibration.load_tables(_out_dir())
     manual = manual_odds.load(date)
-    res = value_center.market_vs_model(s["matchups"], manual, api=None, tables=tables)
+    api = odds_api.load(date)          # read saved api_odds.json (no network)
+    res = value_center.market_vs_model(s["matchups"], manual, api=api, tables=tables)
     return {"exists": True, "date": date, "coverage": calibration.coverage(tables), **res}
 
 
@@ -414,6 +415,41 @@ def api_model(date: str):
     return {"exists": True, "date": date, "players": players,
             "coverage": calibration.coverage(tables),
             "baseline_coverage": featured.baseline_coverage(s["matchups"], pitchers)}
+
+
+@app.get("/api/odds-status")
+def api_odds_status():
+    """SAFE key status (connected / active key NAME / quota) — never the raw key."""
+    from .. import odds_keys
+    from ..sources.odds import live_key_tester
+    return odds_keys.status(live_key_tester())
+
+
+@app.post("/api/odds-refresh/{date}")
+def api_odds_refresh(date: str, payload: dict | None = None):
+    """Explicit live odds pull (button-triggered). Returns a safe summary."""
+    from .. import odds_api
+    from ..util import normalize_name
+    payload = payload or {}
+    try:
+        date = resolve_date(date)
+    except ValueError:
+        raise HTTPException(400, "bad date")
+    s = _slate(date)
+    name_index = {normalize_name(m["batter"]): m["batter_id"]
+                  for m in s.get("matchups", []) if m.get("batter")}
+    cfg = _config()
+    client = _make_client(cfg, offline=False)
+    try:
+        markets = payload.get("markets")
+        if isinstance(markets, str):
+            markets = [x.strip() for x in markets.split(",") if x.strip()]
+        res = odds_api.pull(client, cfg, date, name_index, markets=markets,
+                            region=payload.get("region"),
+                            dry_run=bool(payload.get("dry_run")))
+    finally:
+        client.close()
+    return res
 
 
 @app.get("/api/bvp/{date}")

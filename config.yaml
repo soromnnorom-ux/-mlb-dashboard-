@@ -34,6 +34,9 @@ user_agent: "hrplaybook/1.0 (personal use)"
 
 # Optional odds provider (value filter). Leave provider blank to skip -> value=unknown.
 odds:
-  provider: ""           # "the-odds-api" or "" to disable
+  provider: "the-odds-api"   # enables the Refresh-API-Odds button / CLI (still gated)
   api_key_env: "ODDS_API_KEY"
+  api_key_envs: ["ODDS_API_KEY_1", "ODDS_API_KEY_2", "ODDS_API_KEY_3"]
   region: "us"
+  auto_pull: false           # NEVER pull paid odds automatically; only on explicit refresh
+  api_refresh_ttl_minutes: 15

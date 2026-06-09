@@ -77,8 +77,12 @@ class MissedHR(BaseModel):
 class OddsConfig(BaseModel):
     provider: str = ""
     api_key_env: str = "ODDS_API_KEY"
+    api_key_envs: List[str] = Field(
+        default_factory=lambda: ["ODDS_API_KEY_1", "ODDS_API_KEY_2", "ODDS_API_KEY_3"])
     region: str = "us"
     books: str = ""                  # optional CSV of bookmaker keys to keep (best price if blank)
+    auto_pull: bool = False          # NEVER auto-call the paid API unless True
+    api_refresh_ttl_minutes: int = 15
 
 
 class ValueModel(BaseModel):

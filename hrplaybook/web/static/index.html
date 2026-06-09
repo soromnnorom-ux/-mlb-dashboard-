@@ -882,20 +882,18 @@ function staleDot(s){const c={ok:"#2ea043",yellow:"#d29922",red:"#da3633",unknow
 
 async function renderValue(){
   $("#view").innerHTML=`<div class="empty">Loading…</div>`;
-  let v,mo,os;
-  try{ [v,mo,os]=await Promise.all([
-    api("/api/value/"+STATE.date), api("/api/manual-odds/"+STATE.date), api("/api/odds-status")]); }
+  let v,mo;
+  // NOTE: odds API status / live pull are NOT auto-called on load (protect quota).
+  try{ [v,mo]=await Promise.all([
+    api("/api/value/"+STATE.date), api("/api/manual-odds/"+STATE.date)]); }
   catch(e){ $("#view").innerHTML=`<div class="empty">No data. Click <b>Run</b>.</div>`; return; }
   if(!v.exists){ $("#view").innerHTML=`<div class="empty">No slate for <b>${STATE.date}</b>. Click <b>Run</b>.</div>`; return; }
-  // odds API status (never shows key value)
-  const oc=os.connected;
-  const statusBar=`<div class="read" style="border-left-color:${oc?'#2ea043':'#6e7681'}">
-    <div class="rg"><b>Odds API:</b> ${oc?'connected':'not connected'}
-      ${os.active_key_name?`· active key <b>${os.active_key_name}</b>`:''}
-      ${os.configured&&os.configured.length?`· configured: ${os.configured.join(', ')}`:''}
-      ${oc&&os.keys?(()=>{const k=os.keys.find(x=>x.valid&&x.quota_remaining!=null);return k?` · quota ${k.quota_remaining}`:'';})():''}
-      ${!oc?`<span class="sp"> · manual odds entry below still works</span>`:''}
-      <br/><span class="sp">Value uses the <b>calibrated</b> probability (model was overconfident historically); raw shown for reference.</span></div></div>`;
+  const apiRows=(v.rows||[]).filter(r=>r.source==="api").length;
+  const statusBar=`<div class="read" style="border-left-color:#388bfd">
+    <div class="rg"><b>Odds API:</b>
+      <button id="btnApiOdds" class="primary" style="padding:4px 10px">Refresh API Odds</button>
+      <span id="oddsApiStatus" class="sp">${apiRows?`${apiRows} API prices loaded`:'not pulled yet — manual entry below still works'}</span>
+      <br/><span class="sp">Live odds pull only on click (never auto). Value uses the <b>calibrated</b> probability; raw shown for reference.</span></div></div>`;
   // best value cards
   const bv=v.best_value||{};
   const cards=["HR","TB","HRR","Hits"].map(mk=>{const r=bv[mk];
@@ -945,9 +943,10 @@ async function renderValue(){
       <td>${r.bet_type}</td><td class="mono">${r.model_score??'—'}</td><td class="mono">${pctFmt(r.model_prob)}</td>
       <td class="mono">${oddsFmt(r.odds)}</td><td><span class="gpill ${valCls(r.value)}">${r.value}</span></td></tr>`).join("")+`</tbody></table></div>`;
   const lbVal=`<h3>Best Value Plays <span class="sp" style="color:var(--muted)">(most mispriced)</span></h3>`+
-    ((v.leaderboard_value||[]).length?`<div class="panel"><table><thead><tr><th>#</th><th>Player</th><th>Bet</th><th>Odds</th><th>Cal % (raw)</th><th>Implied %</th><th>Edge</th><th>Value</th></tr></thead><tbody>`+
+    ((v.leaderboard_value||[]).length?`<div class="panel"><table><thead><tr><th>#</th><th>Player</th><th>Bet</th><th>Odds</th><th>Src</th><th>Cal % (raw)</th><th>Implied %</th><th>Edge</th><th>Value</th></tr></thead><tbody>`+
     v.leaderboard_value.map((r,i)=>`<tr><td class="rk">${i+1}</td><td><b>${r.player}</b> <span class="sp">${r.team}</span></td>
       <td>${r.bet_type}</td><td class="mono">${oddsFmt(r.odds)} <span class="sp">${r.sportsbook||''}</span></td>
+      <td><span class="tag ${r.source==='api'?'plat':''}">${r.source||'—'}</span>${({ok:'',yellow:' ⚠',red:' ⛔'})[r.stale]||''}</td>
       <td class="mono">${pctFmt(r.model_prob)} <span class="sp">(${pctFmt(r.raw_model_prob)})</span></td><td class="mono">${pctFmt(r.implied_prob)}</td>
       <td class="mono">${edgeFmt(r.edge)}</td><td><span class="gpill ${valCls(r.value)}">${r.value}</span></td></tr>`).join("")+`</tbody></table></div>`
     :`<div class="sp" style="color:var(--muted)">no priced plays — enter odds above</div>`);
@@ -971,6 +970,26 @@ async function renderValue(){
   };
   document.querySelectorAll("button[data-del]").forEach(b=>b.onclick=async()=>{
     await api("/api/manual-odds/"+STATE.date+"/"+b.dataset.del,{method:"DELETE"}); renderValue();});
+  // Refresh API Odds — the ONLY path that calls the paid provider (explicit click)
+  const ab=$("#btnApiOdds");
+  if(ab) ab.onclick=async()=>{
+    const st=$("#oddsApiStatus"); st.textContent="pulling live odds…"; ab.disabled=true;
+    try{
+      const r=await api("/api/odds-refresh/"+STATE.date,{method:"POST",
+        headers:{"Content-Type":"application/json"},body:JSON.stringify({})});
+      if(!r.ok){
+        const msg={no_key:"no API key in environment",invalid_key:"API key invalid",
+          quota_exhausted:"API quota exhausted"}[r.error]||r.error||"failed";
+        st.textContent="❌ "+msg;
+      }else{
+        st.innerHTML=`✅ key <b>${r.active_key_name}</b> · ${r.records_saved} records · `+
+          `books ${(r.books||[]).join(", ")||"—"} · quota ${r.quota_remaining??"?"}`+
+          ((r.errors&&r.errors.length)?` · <span style="color:#f0a064">errors: ${r.errors.join(",")}</span>`:"");
+        renderValue();
+      }
+    }catch(e){ st.textContent="❌ request failed"; }
+    finally{ ab.disabled=false; }
+  };
 }
 
 // --- glossary + tooltips (Phase 16) ---

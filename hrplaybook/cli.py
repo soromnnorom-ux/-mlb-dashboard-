@@ -266,7 +266,9 @@ def build_slate(
 
     # 9. value filter (model probs always; +EV verdict only when odds exist)
     odds_maps: Dict[str, Dict[int, int]] = {"HR": {}, "TB": {}}
-    if use_odds:
+    # NEVER auto-pull paid odds during a normal run unless auto_pull is enabled;
+    # the explicit path is `hrplaybook odds-refresh` / the Refresh-API-Odds button.
+    if use_odds and getattr(cfg.odds, "auto_pull", False):
         provider = make_provider(cfg, client, name_index)
         if getattr(provider, "enabled", False):
             odds_maps = provider.odds(date)
@@ -274,6 +276,8 @@ def build_slate(
                 warnings.append("Odds provider returned no props; value=unknown.")
         else:
             warnings.append("No odds provider configured; value=unknown (model probs shown).")
+    else:
+        warnings.append("Live odds not auto-pulled (use odds-refresh / Refresh API Odds).")
     apply_value(matchups, odds_maps, cfg)
 
     # staleness / network warnings
@@ -534,6 +538,52 @@ def schedule_install(
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(snippet)
     typer.echo(f"Wrote {out}\nInstall with:  crontab -l 2>/dev/null | cat - {out} | crontab -")
+
+
+@app.command("odds-refresh")
+def odds_refresh(
+    date: str = typer.Option("today", help="today | YYYY-MM-DD"),
+    markets: str = typer.Option("", help="CSV subset e.g. HR,TB,Hits,HRR,RBI"),
+    region: str = typer.Option("", help="odds region (default from config)"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="validate key only, no save"),
+    force: bool = typer.Option(False, "--force", help="bypass odds cache"),
+):
+    """Explicitly pull live odds from The Odds API into out/<date>/api_odds.json."""
+    import csv as _csv
+
+    from . import odds_api
+    date = resolve_date(date)
+    cfg = load_config()
+    client = _make_client(cfg, offline=False)
+    if force:
+        client.force_refresh = True
+    name_index: Dict[str, int] = {}
+    mp = Path("out") / date / "matchups.csv"
+    if mp.exists():
+        for r in _csv.DictReader(mp.open()):
+            bid = r.get("batter_id")
+            if r.get("batter") and bid and str(bid).isdigit():
+                name_index[normalize_name(r["batter"])] = int(bid)
+    mk = [x.strip() for x in markets.split(",") if x.strip()] or None
+    try:
+        res = odds_api.pull(client, cfg, date, name_index, markets=mk,
+                            region=region or None, dry_run=dry_run)
+    finally:
+        client.close()
+    if not res.get("ok"):
+        typer.echo(f"❌ odds-refresh: {res.get('error')}")
+        for r in res.get("key_reports", []):
+            typer.echo(f"   {r['env']}: {'valid' if r['valid'] else r['error']}")
+        raise typer.Exit(1)
+    if res.get("dry_run"):
+        typer.echo(f"✅ dry-run OK · key {res['active_key_name']} · "
+                   f"markets {res['markets_requested']} · quota {res.get('quota_remaining')}")
+        return
+    typer.echo(f"✅ key {res['active_key_name']} · pulled {res.get('markets_pulled') or []} · "
+               f"{res['records_saved']} records · books {res.get('books')} · "
+               f"quota {res.get('quota_remaining')} · unmatched {res.get('unmatched', 0)}")
+    if res.get("errors"):
+        typer.echo("   errors: " + ", ".join(res["errors"]))
 
 
 @app.command("backfill-snapshots")
