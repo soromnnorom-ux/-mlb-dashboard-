@@ -256,6 +256,42 @@ def best5(matchups: List[dict], pitchers: List[dict], games: List[dict]) -> dict
     return out
 
 
+def baseline_coverage(matchups: List[dict], pitchers: List[dict]) -> dict:
+    """2025-baseline coverage across the slate (Batch 9 cleanup)."""
+    def _has(v):
+        return v not in (None, "", "None", "{}")
+    seen_b, b_with = set(), 0
+    for m in matchups:
+        bid = m.get("batter_id")
+        if bid in seen_b:
+            continue
+        seen_b.add(bid)
+        if _has(m.get("batter_2025_stats")):
+            b_with += 1
+    bt = len(seen_b)
+    seen_p, p_with = set(), 0
+    for p in pitchers:
+        nm = p.get("name")
+        if nm in seen_p:
+            continue
+        seen_p.add(nm)
+        if _has(p.get("pitcher_2025_stats")):
+            p_with += 1
+    pt = len(seen_p)
+    pct = (b_with / bt) if bt else None
+    warnings = []
+    if pct is not None and pct < 0.70:
+        warnings.append("LOW_2025_BASELINE_COVERAGE")
+    return {
+        "batters_total": bt, "batters_with_2025": b_with,
+        "batters_without_2025": bt - b_with,
+        "pitchers_total": pt, "pitchers_with_2025": p_with,
+        "pitchers_without_2025": pt - p_with,
+        "batter_pct": round(pct, 3) if pct is not None else None,
+        "warnings": warnings,
+    }
+
+
 def slate_summary(games: List[dict], matchups: List[dict], pitchers: List[dict]) -> dict:
     elite = [g for g in games if g.get("env_tier") == "elite"]
     good = [g for g in games if g.get("env_tier") == "good"]

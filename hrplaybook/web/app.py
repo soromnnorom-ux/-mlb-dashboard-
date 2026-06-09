@@ -233,6 +233,7 @@ def api_home(date: str):
             "alerts": val["alerts"][:5],
         },
         "perf_snapshot": performance.snapshot(_out_dir()),
+        "baseline_coverage": featured.baseline_coverage(m, pitchers),
         "meta": s.get("meta", {}),
     }
 
@@ -401,8 +402,10 @@ def api_model(date: str):
                 "warnings": _split(m.get("sample_warnings")),
             },
         })
+    pitchers = _df_records(_out_dir() / date / "pitchers.csv")
     return {"exists": True, "date": date, "players": players,
-            "coverage": calibration.coverage(tables)}
+            "coverage": calibration.coverage(tables),
+            "baseline_coverage": featured.baseline_coverage(s["matchups"], pitchers)}
 
 
 @app.get("/api/calibration")

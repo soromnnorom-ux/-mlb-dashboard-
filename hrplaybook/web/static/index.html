@@ -139,6 +139,15 @@
   .bdbars div{display:flex;align-items:center;gap:8px;margin:3px 0;font-size:12px}
   .bdbars .bn{width:120px;color:var(--muted)}.bdbars .bb{height:8px;background:var(--accent);border-radius:3px}
   .bdbars .bp{width:30px;text-align:right;font-variant-numeric:tabular-nums}
+  /* multi-season cleanup (Batch 9): trend badges + compact cards */
+  .tb-imp{background:#0f5132;color:#7ee787}.tb-dec{background:#42260f;color:#f0a064}
+  .tb-same{background:#222b36;color:#8b949e}.tb-small{background:#3a2d10;color:#e3b341}
+  .tb-mix{background:#2b2350;color:#b69cff}
+  .mscards{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
+  .mscard{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px 12px;min-width:160px}
+  .mscard .t{font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:5px}
+  .mscard .v{font-size:12px;color:#adbac7;line-height:1.7}
+  .mscard .miss{color:var(--muted);font-style:italic}
 </style>
 </head>
 <body>
@@ -594,7 +603,7 @@ async function renderPitchers(){
       <td class="mono">${p.hr_attack}</td><td class="mono">${p.tb_attack}</td>
       <td class="sp">${p.more_attackable_2026?'<span class="tag" style="color:#f0a000;border-color:#5a4400">↑ more attackable</span>':''}
         ${p.pitch_mix_change?`<span class="tag plat">mix: ${p.pitch_mix_change}</span>`:''}
-        ${(p.trend_label&&p.trend_label!=='SAME_PROFILE')?`<span class="sp">${p.trend_label}</span>`:''}</td>
+        ${(p.trend_label&&p.trend_label!=='SAME_PROFILE')?trendBadge(p.trend_label):''}</td>
       <td class="sp" style="color:#adbac7">${(p.reasons||[]).slice(0,3).join(" · ")}</td>
       <td class="sp" style="color:#e0a0a0">${(p.red_flags||[]).join(" · ")}</td></tr>`).join("")+`</tbody></table></div>`;
   let html=tbl("Top 10 Most Attackable",d.top10)
@@ -641,23 +650,42 @@ async function renderContact(){
     <th>95+</th><th>100+</th><th>105+</th><th>100+ L5g</th><th>Score</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
+function trendBadge(label){
+  if(!label) return "";
+  const m={IMPROVING_POWER_PROFILE:["tb-imp","IMPROVING"],IMPROVING_CONTACT_PROFILE:["tb-imp","IMPROVING"],
+    DECLINING_POWER_PROFILE:["tb-dec","DECLINING"],DECLINING_CONTACT_PROFILE:["tb-dec","DECLINING"],
+    SAME_PROFILE:["tb-same","SAME"],SMALL_SAMPLE:["tb-small","SMALL SAMPLE"],
+    PITCH_MIX_CHANGE:["tb-mix","PITCH MIX CHANGE"],PITCHER_REGRESSION_RISK:["tb-dec","REGRESSION RISK"]
+   }[label]||["tb-same",label];
+  return `<span class="gpill ${m[0]}">${m[1]}</span>`;
+}
 function msBlock(ms){
   if(!ms) return "";
-  const tr=ms.trend||{}, w=ms.weighted||{}, s=ms.s2025||{}, l=ms.l30||{}, c=ms.cur||{};
-  const n=(v,d=1)=>v==null||v===""||isNaN(v)?"—":(+v).toFixed(d);
-  const row=(lbl,b,e,h)=>`<tr><td>${lbl}</td><td class="mono">${n(b)}</td><td class="mono">${n(e)}</td><td class="mono">${n(h)}</td></tr>`;
-  const warn=(ms.warnings||[]).length?` <span class="sp" style="color:#d29922">${ms.warnings.join(", ")}</span>`:"";
+  const tr=ms.trend||{}, w=ms.weighted||{}, s=ms.s2025, l=ms.l30||{}, c=ms.cur||{};
+  const n=(v,d=1)=>v==null||v===""||isNaN(v)?'<span class="miss">—</span>':(+v).toFixed(d);
+  const card=(title,d)=>{
+    if(d.miss) return `<div class="mscard"><div class="t">${title}</div><div class="v miss">— no data</div></div>`;
+    const parts=[];
+    if("barrel" in d) parts.push(`Barrel ${n(d.barrel)}%`);
+    if("ev" in d) parts.push(`EV ${n(d.ev)}`);
+    if("hh" in d) parts.push(`HardHit ${n(d.hh)}%`);
+    if("maxev" in d) parts.push(`MaxEV ${n(d.maxev)}`);
+    if("nn" in d && d.nn!=null) parts.push(`<span class="sp">n=${d.nn}</span>`);
+    return `<div class="mscard"><div class="t">${title}</div><div class="v">${parts.join(" · ")}</div></div>`;
+  };
+  const trendCard=`<div class="mscard"><div class="t">Trend</div>
+    <div class="v"><span class="gpill ${gradeCls(tr.grade)}">${tr.grade||'?'}</span> ${trendBadge(tr.label)}
+    ${(tr.reasons||[]).length?`<div class="sp" style="margin-top:4px;color:#adbac7">${tr.reasons.slice(0,3).map(r=>'• '+r).join("<br/>")}</div>`:''}</div></div>`;
+  const warn=(ms.warnings||[]).length?` <span class="gpill tb-small">${ms.warnings.join(" ")}</span>`:"";
   return `<div style="margin-top:10px;border-top:1px solid var(--line);padding-top:8px">
-    <div class="lbl" style="font-size:11px;color:var(--muted);text-transform:uppercase;margin-bottom:6px">
-      Multi-Season · Trend <span class="gpill ${gradeCls(tr.grade)}">${tr.grade||'?'}</span>
-      ${tr.label?`<span class="tag">${tr.label}</span>`:''}${warn}</div>
-    <table style="width:auto"><thead><tr><th>Window</th><th>Barrel%</th><th>EV</th><th>HardHit%</th></tr></thead><tbody>
-      ${row("2025 baseline", s.barrel_pct, s.avg_ev, s.hardhit_pct)}
-      ${row("2026 season", c.barrel_pct, c.avg_ev, c.hardhit_pct)}
-      ${row("Last 30d", l.barrel_pct, l.ev, l.hardhit_pct)}
-      ${row("Weighted", w.barrel, w.ev, w.hardhit)}
-    </tbody></table>
-    ${(tr.reasons||[]).length?`<div class="sub" style="margin-top:4px;color:#adbac7">${tr.reasons.map(r=>'• '+r).join("<br/>")}</div>`:''}</div>`;
+    <div class="lbl" style="font-size:11px;color:var(--muted);text-transform:uppercase">Multi-Season${warn}</div>
+    <div class="mscards">
+      ${card("2025 Baseline", s?{barrel:s.barrel_pct,ev:s.avg_ev,hh:s.hardhit_pct,nn:s.pa}:{miss:true})}
+      ${card("2026 Season", {barrel:c.barrel_pct,ev:c.avg_ev,hh:c.hardhit_pct})}
+      ${card("Last 30 Days", l&&l.n?{barrel:l.barrel_pct,ev:l.ev,hh:l.hardhit_pct,maxev:l.max_ev,nn:l.n}:{miss:true})}
+      ${card("Weighted", {barrel:w.barrel,ev:w.ev,hh:w.hardhit})}
+      ${trendCard}
+    </div></div>`;
 }
 async function renderModel(){
   if($("#dateSel").value)STATE.date=$("#dateSel").value;
@@ -691,7 +719,13 @@ async function renderModel(){
           return `<div><div class="lbl" style="font-size:11px;color:var(--muted);text-transform:uppercase;margin-bottom:4px">${x} = ${p.scores[x].score} <span class="gpill ${gradeCls(p.scores[x].grade)}">${p.scores[x].grade}</span></div>${bdBars(p.scores[x].breakdown)}${probLine}${vline}</div>`;}).join("")}
         </div>${msBlock(p.multiseason)}</td></tr>`;
   }).join("");
-  $("#view").innerHTML=`<div class="chips">${chips}</div>
+  const bc=d.baseline_coverage||{};
+  const bcLow=(bc.warnings||[]).includes("LOW_2025_BASELINE_COVERAGE");
+  const bcBanner=bc.batters_total?`<div class="sp" style="margin-bottom:8px">
+    2025 baseline coverage: <b class="${bcLow?'ev-neg':'ev-pos'}">${bc.batters_with_2025}/${bc.batters_total} batters
+    (${Math.round((bc.batter_pct||0)*100)}%)</b> · ${bc.pitchers_with_2025}/${bc.pitchers_total} pitchers
+    ${bcLow?'<span class="gpill tb-small">LOW_2025_BASELINE_COVERAGE</span>':''}</div>`:"";
+  $("#view").innerHTML=`<div class="chips">${chips}</div>${bcBanner}
     <div class="sp" style="color:var(--muted);margin-bottom:8px">${rows.length} players · click a row for the score breakdown</div>
     <div class="panel"><table class="cs"><thead><tr><th>#</th><th>Player</th><th>Matchup</th>
       <th>HR</th><th>TB</th><th>HRR</th><th>Hit</th><th>Env</th></tr></thead><tbody>${body}</tbody></table></div>`;

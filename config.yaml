@@ -23,6 +23,9 @@ pitcher_parks: [SEA, SF, MIA, DET, CLE]
 # Savant leaderboard min-PA thresholds ("q"=qualified only; numbers widen coverage)
 savant_batter_min: "25"
 savant_pitcher_min: "10"
+# 2025 baseline coverage (lower min so platoon/call-up/injury-return bats get a baseline)
+savant_batter_min_2025: "25"
+savant_pitcher_min_2025: "10"
 
 # Networking / caching
 rate_limit_per_sec: 1

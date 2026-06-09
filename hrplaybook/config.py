@@ -126,6 +126,10 @@ class Config(BaseModel):
     # pitchers only); numeric strings widen coverage to bench/platoon/call-ups.
     savant_batter_min: str = "25"
     savant_pitcher_min: str = "10"
+    # 2025 baseline pull uses a LOWER min so platoon bats / call-ups / injury
+    # returns still get a baseline (props often involve non-qualified hitters).
+    savant_batter_min_2025: str = "25"
+    savant_pitcher_min_2025: str = "10"
 
     rate_limit_per_sec: float = 1
     cache_ttl_minutes: Dict[str, int] = Field(

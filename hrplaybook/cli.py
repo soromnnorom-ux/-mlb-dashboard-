@@ -137,12 +137,15 @@ def build_slate(
         warnings.append("Batter leaderboard empty (network?); metrics will be sparse.")
     name_index = {normalize_name(b.name): pid for pid, b in batter_pool.items()}
 
-    # 5b. multi-season baseline pools (2025) — ids are stable across seasons
+    # 5b. multi-season baseline pools (2025) — ids are stable across seasons.
+    # Use a LOWER baseline min so non-qualified bats still get a baseline.
     baseline_year = cfg.season - 1
+    bmin25 = getattr(cfg, "savant_batter_min_2025", None) or cfg.savant_batter_min
+    pmin25 = getattr(cfg, "savant_pitcher_min_2025", None) or cfg.savant_pitcher_min
     batter_pool_2025 = savant.parse_batter_leaderboard(
-        savant.fetch_batter_leaderboard(client, baseline_year, cfg.savant_batter_min), baseline_year)
+        savant.fetch_batter_leaderboard(client, baseline_year, bmin25), baseline_year)
     pitcher_pool_2025 = savant.parse_pitcher_leaderboard(
-        savant.fetch_pitcher_leaderboard(client, baseline_year, cfg.savant_pitcher_min), baseline_year)
+        savant.fetch_pitcher_leaderboard(client, baseline_year, pmin25), baseline_year)
     arsenals_2025 = savant.parse_arsenals(savant.fetch_arsenals(client, baseline_year))
 
     # probables
@@ -245,6 +248,14 @@ def build_slate(
 
     # 8. cap HR plays
     finalize_tiers(matchups, cfg)
+
+    # 2025 baseline coverage warning (Batch 9)
+    bat_ids = {m.batter.player_id for m in matchups}
+    bat_with = {m.batter.player_id for m in matchups if m.batter.s2025}
+    if bat_ids and len(bat_with) / len(bat_ids) < 0.70:
+        warnings.append(
+            f"LOW_2025_BASELINE_COVERAGE: {len(bat_with)}/{len(bat_ids)} batters "
+            f"have a 2025 baseline.")
 
     # 9. value filter (model probs always; +EV verdict only when odds exist)
     odds_maps: Dict[str, Dict[int, int]] = {"HR": {}, "TB": {}}
