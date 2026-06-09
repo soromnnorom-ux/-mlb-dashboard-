@@ -366,6 +366,16 @@ def api_model(date: str):
         return {"exists": False, "date": date, "players": []}
     from .. import calibration, value_center
     tables = calibration.load_tables(_out_dir())
+
+    def _pj(v):
+        try:
+            return json.loads(v) if v not in (None, "", "None") else None
+        except (json.JSONDecodeError, TypeError):
+            return None
+
+    def _split(v):
+        return [x for x in str(v or "").split("|") if x]
+
     players = []
     for m in s["matchups"]:
         sc = featured.market_scores(m)
@@ -380,6 +390,16 @@ def api_model(date: str):
             "platoon": m.get("platoon"), "env_tier": m.get("env_tier"),
             "lineup_state": m.get("lineup_state"), "tags": m.get("tags"),
             "scores": sc, "probs": probs,
+            "multiseason": {
+                "s2025": _pj(m.get("batter_2025_stats")),
+                "cur": {"barrel_pct": m.get("barrel_pct"), "avg_ev": m.get("avg_ev"),
+                        "hardhit_pct": m.get("hardhit_pct")},
+                "l30": _pj(m.get("batter_l30_stats")),
+                "weighted": _pj(m.get("weighted_profile")),
+                "trend": {"grade": m.get("trend_grade"), "label": m.get("trend_label"),
+                          "reasons": _split(m.get("trend_reasons"))},
+                "warnings": _split(m.get("sample_warnings")),
+            },
         })
     return {"exists": True, "date": date, "players": players,
             "coverage": calibration.coverage(tables)}

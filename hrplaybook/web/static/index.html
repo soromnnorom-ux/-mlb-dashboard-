@@ -588,10 +588,13 @@ async function renderPitchers(){
   let d; try{ d=await api("/api/pitchers/"+STATE.date);}catch(e){ d={exists:false}; }
   if(!d.exists){ $("#view").innerHTML=`<div class="empty">No data. Click <b>Run</b>.</div>`; return; }
   const tbl=(title,rows,key)=>!rows.length?"":`<h3>${title}</h3><div class="panel"><table><thead><tr>
-    <th>#</th><th>Pitcher</th><th>Game</th><th>Score</th><th>HR atk</th><th>TB atk</th><th>Why</th><th>Flags</th></tr></thead><tbody>`+
+    <th>#</th><th>Pitcher</th><th>Game</th><th>Score</th><th>HR atk</th><th>TB atk</th><th>2026 Trend</th><th>Why</th><th>Flags</th></tr></thead><tbody>`+
     rows.map((p,i)=>`<tr><td class="rk">${i+1}</td><td><b>${p.name}</b> <span class="sp">${p.throws||''}</span></td>
       <td>${p.game}</td><td><span class="gpill ${gradeCls(p.grade)}">${p[key||'attack']} ${p.grade}</span></td>
       <td class="mono">${p.hr_attack}</td><td class="mono">${p.tb_attack}</td>
+      <td class="sp">${p.more_attackable_2026?'<span class="tag" style="color:#f0a000;border-color:#5a4400">↑ more attackable</span>':''}
+        ${p.pitch_mix_change?`<span class="tag plat">mix: ${p.pitch_mix_change}</span>`:''}
+        ${(p.trend_label&&p.trend_label!=='SAME_PROFILE')?`<span class="sp">${p.trend_label}</span>`:''}</td>
       <td class="sp" style="color:#adbac7">${(p.reasons||[]).slice(0,3).join(" · ")}</td>
       <td class="sp" style="color:#e0a0a0">${(p.red_flags||[]).join(" · ")}</td></tr>`).join("")+`</tbody></table></div>`;
   let html=tbl("Top 10 Most Attackable",d.top10)
@@ -638,6 +641,24 @@ async function renderContact(){
     <th>95+</th><th>100+</th><th>105+</th><th>100+ L5g</th><th>Score</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
+function msBlock(ms){
+  if(!ms) return "";
+  const tr=ms.trend||{}, w=ms.weighted||{}, s=ms.s2025||{}, l=ms.l30||{}, c=ms.cur||{};
+  const n=(v,d=1)=>v==null||v===""||isNaN(v)?"—":(+v).toFixed(d);
+  const row=(lbl,b,e,h)=>`<tr><td>${lbl}</td><td class="mono">${n(b)}</td><td class="mono">${n(e)}</td><td class="mono">${n(h)}</td></tr>`;
+  const warn=(ms.warnings||[]).length?` <span class="sp" style="color:#d29922">${ms.warnings.join(", ")}</span>`:"";
+  return `<div style="margin-top:10px;border-top:1px solid var(--line);padding-top:8px">
+    <div class="lbl" style="font-size:11px;color:var(--muted);text-transform:uppercase;margin-bottom:6px">
+      Multi-Season · Trend <span class="gpill ${gradeCls(tr.grade)}">${tr.grade||'?'}</span>
+      ${tr.label?`<span class="tag">${tr.label}</span>`:''}${warn}</div>
+    <table style="width:auto"><thead><tr><th>Window</th><th>Barrel%</th><th>EV</th><th>HardHit%</th></tr></thead><tbody>
+      ${row("2025 baseline", s.barrel_pct, s.avg_ev, s.hardhit_pct)}
+      ${row("2026 season", c.barrel_pct, c.avg_ev, c.hardhit_pct)}
+      ${row("Last 30d", l.barrel_pct, l.ev, l.hardhit_pct)}
+      ${row("Weighted", w.barrel, w.ev, w.hardhit)}
+    </tbody></table>
+    ${(tr.reasons||[]).length?`<div class="sub" style="margin-top:4px;color:#adbac7">${tr.reasons.map(r=>'• '+r).join("<br/>")}</div>`:''}</div>`;
+}
 async function renderModel(){
   if($("#dateSel").value)STATE.date=$("#dateSel").value;
   $("#view").innerHTML=`<div class="empty">Loading…</div>`;
@@ -668,7 +689,7 @@ async function renderModel(){
           const vline=vr?`<div class="sub" style="margin-top:2px">💰 ${oddsFmt(vr.odds)} · edge ${edgeFmt(vr.edge)} · <span class="gpill ${valCls(vr.value)}">${vr.value}</span></div>`
             :`<div class="sub" style="margin-top:2px;color:var(--muted)">Value unknown — odds not entered</div>`;
           return `<div><div class="lbl" style="font-size:11px;color:var(--muted);text-transform:uppercase;margin-bottom:4px">${x} = ${p.scores[x].score} <span class="gpill ${gradeCls(p.scores[x].grade)}">${p.scores[x].grade}</span></div>${bdBars(p.scores[x].breakdown)}${probLine}${vline}</div>`;}).join("")}
-        </div></td></tr>`;
+        </div>${msBlock(p.multiseason)}</td></tr>`;
   }).join("");
   $("#view").innerHTML=`<div class="chips">${chips}</div>
     <div class="sp" style="color:var(--muted);margin-bottom:8px">${rows.length} players · click a row for the score breakdown</div>

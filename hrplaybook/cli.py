@@ -13,6 +13,7 @@ from .http import Client
 from .model.enrich import attach_arsenal, bullpen_hr9, enrich_batter
 from .model.schemas import Batter, Game, Matchup, Pitcher, load_parks
 from .report import cards, cheatsheet, csvout
+from . import seasons
 from .report.picks import load_picks, write_picks
 from .score.bettypes import map_bets
 from .score.environment import score_environment
@@ -136,6 +137,14 @@ def build_slate(
         warnings.append("Batter leaderboard empty (network?); metrics will be sparse.")
     name_index = {normalize_name(b.name): pid for pid, b in batter_pool.items()}
 
+    # 5b. multi-season baseline pools (2025) — ids are stable across seasons
+    baseline_year = cfg.season - 1
+    batter_pool_2025 = savant.parse_batter_leaderboard(
+        savant.fetch_batter_leaderboard(client, baseline_year, cfg.savant_batter_min), baseline_year)
+    pitcher_pool_2025 = savant.parse_pitcher_leaderboard(
+        savant.fetch_pitcher_leaderboard(client, baseline_year, cfg.savant_pitcher_min), baseline_year)
+    arsenals_2025 = savant.parse_arsenals(savant.fetch_arsenals(client, baseline_year))
+
     # probables
     pitchers_used: Dict[int, Pitcher] = {}
     for g in games:
@@ -151,6 +160,17 @@ def build_slate(
     for pid, info in people.items():
         if pid in pitchers_used and info.get("throws"):
             pitchers_used[pid].throws = info["throws"]
+
+    # multi-season split for pitchers: 2025 baseline + pitch-mix change + trend
+    for pid, p in pitchers_used.items():
+        p.s2025 = seasons.pitcher_baseline(pitcher_pool_2025.get(pid))
+        p.arsenal_2025 = arsenals_2025.get(pid, {})
+        p.pitch_mix_change = seasons.pitch_mix_change(p.arsenal_2025, p.arsenal)
+        p.trend = seasons.pitcher_trend(
+            p.s2025, {"hr9": p.hr9, "barrel_pct_allowed": p.barrel_pct_allowed,
+                      "k_pct": p.k_pct}, p.pitch_mix_change, ip_2026=p.ip)
+        if p.pitch_mix_change.get("changed"):
+            p.sample_warnings.append("PITCH_MIX_CHANGE")
 
     # 6. projected fallback lineups (one page for the whole slate)
     projected = rotowire.parse_rotowire(rotowire.fetch_lineups_html(client, date))
@@ -188,18 +208,30 @@ def build_slate(
                 b.pulled_at = pulled_at
                 if entry.get("bats") and not b.bats:
                     b.bats = entry["bats"]
+                b.s2025 = seasons.batter_baseline(batter_pool_2025.get(b.player_id))
 
                 # pull the Statcast window unless disabled or a clear non-threat
                 if use_statcast and b.player_id > 0 and not (
                         not full_statcast and _weak_non_threat(b)):
                     text = savant.fetch_statcast_batter(client, b.player_id, win_start, date)
-                    enrich_batter(b, savant.parse_statcast(text),
-                                  savant.parse_pa_events(text), opp_pitcher, cfg)
+                    balls = savant.parse_statcast(text)
+                    enrich_batter(b, balls, savant.parse_pa_events(text), opp_pitcher, cfg)
+                    b.win30 = seasons.window_metrics(balls, date, 30)
+                    b.win14 = seasons.window_metrics(balls, date, 14)
+                    b.win7 = seasons.window_metrics(balls, date, 7)
                     stat_n += 1
                     if progress and stat_n % 20 == 0:
                         typer.echo(f"   …statcast pulled for {stat_n} batters", err=True)
                 elif b.barrel_vs_pm is None:
                     b.barrel_vs_pm = b.barrel_pct  # fallback when statcast skipped
+
+                # multi-season weighted profile + trend (display/trend only)
+                _cur = {"barrel_pct": b.barrel_pct, "avg_ev": b.avg_ev,
+                        "hardhit_pct": b.hardhit_pct}
+                b.weighted = seasons.weighted_profile(b.s2025, _cur, b.win30,
+                                                      bet="HR", pa_2026=b.pa)
+                b.trend = seasons.batter_trend(b.s2025, _cur, b.win30, pa_2026=b.pa)
+                b.sample_warnings = list(b.weighted.get("warnings", []))
 
                 m = Matchup(batter=b, pitcher=opp_pitcher, game=g, side=side,
                             opp_team=opp_team)

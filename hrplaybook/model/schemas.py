@@ -61,6 +61,12 @@ class Pitcher:
     pitcher_score: int = 0
     regression_flag: bool = False
     score_breakdown: Dict[str, int] = field(default_factory=dict)
+    # multi-season split (Batch 8)
+    s2025: Optional[Dict] = None
+    arsenal_2025: Dict[str, float] = field(default_factory=dict)
+    pitch_mix_change: Dict = field(default_factory=dict)
+    trend: Dict = field(default_factory=dict)
+    sample_warnings: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -114,6 +120,14 @@ class Batter:
     ev110_l7g: int = 0       # 110+ EV in last 7 games
     cluster_label: Optional[str] = None   # COLD | NORMAL | HOT | NUCLEAR
     cluster_score: int = 0
+    # multi-season split (Batch 8)
+    s2025: Optional[Dict] = None          # 2025 baseline metrics
+    win30: Dict = field(default_factory=dict)  # last-30-day contact window
+    win14: Dict = field(default_factory=dict)
+    win7: Dict = field(default_factory=dict)
+    weighted: Dict = field(default_factory=dict)   # weighted power profile
+    trend: Dict = field(default_factory=dict)      # trend grade/label/reasons
+    sample_warnings: List[str] = field(default_factory=list)
     tags: List[str] = field(default_factory=list)
 
     @property

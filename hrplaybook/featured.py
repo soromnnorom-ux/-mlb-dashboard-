@@ -530,7 +530,12 @@ def pitcher_attack_table(pitchers: List[dict], games: List[dict]) -> dict:
             continue
         a = pitcher_attack(p)
         rows.append({"name": p.get("name"), "game": sp_game.get(p.get("name"), ""),
-                     "throws": p.get("throws"), "hr9": _f(p, "hr9"), **a})
+                     "throws": p.get("throws"), "hr9": _f(p, "hr9"),
+                     "trend_grade": p.get("pitcher_trend_grade"),
+                     "trend_label": p.get("pitcher_trend_label"),
+                     "pitch_mix_change": p.get("pitch_mix_change") or "",
+                     "more_attackable_2026": str(p.get("more_attackable_2026")).lower() == "true",
+                     **a})
     rows.sort(key=lambda r: -r["attack"])
     return {
         "all": rows,

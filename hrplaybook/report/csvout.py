@@ -1,6 +1,7 @@
 """Raw CSV dumps -- the analyst's own-view layer."""
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Dict, List
 
@@ -78,6 +79,14 @@ def _pitcher_rows(pitchers: Dict[int, Pitcher]) -> List[dict]:
             "pitcher_score": p.pitcher_score,
             "regression_flag": p.regression_flag,
             "small_sample": p.small_sample,
+            # multi-season split (Batch 8)
+            "pitcher_2025_stats": json.dumps(p.s2025) if p.s2025 else "",
+            "pitcher_trend_grade": p.trend.get("grade") if p.trend else None,
+            "pitcher_trend_label": p.trend.get("label") if p.trend else None,
+            "pitcher_trend_reasons": "|".join(p.trend.get("reasons", [])) if p.trend else "",
+            "pitch_mix_change": p.pitch_mix_change.get("summary", "") if p.pitch_mix_change else "",
+            "pitch_mix_change_flags": "|".join(p.pitch_mix_change.get("flags", [])) if p.pitch_mix_change else "",
+            "more_attackable_2026": p.trend.get("more_attackable_2026") if p.trend else None,
         })
     return rows
 
@@ -161,6 +170,16 @@ def _matchup_rows(matchups: List[Matchup]) -> List[dict]:
             "ev100_l5g": b.ev100_l5g,
             "ev105_l7g": b.ev105_l7g,
             "ev110_l7g": b.ev110_l7g,
+            # multi-season split (Batch 8)
+            "batter_2025_stats": json.dumps(b.s2025) if b.s2025 else "",
+            "batter_l30_stats": json.dumps(b.win30) if b.win30 else "",
+            "batter_l14_stats": json.dumps(b.win14) if b.win14 else "",
+            "batter_l7_stats": json.dumps(b.win7) if b.win7 else "",
+            "weighted_profile": json.dumps(b.weighted) if b.weighted else "",
+            "trend_grade": b.trend.get("grade") if b.trend else None,
+            "trend_label": b.trend.get("label") if b.trend else None,
+            "trend_reasons": "|".join(b.trend.get("reasons", [])) if b.trend else "",
+            "sample_warnings": "|".join(b.sample_warnings),
             "batter_score": m.batter_score,
             "edge_bonus": m.edge_bonus,
             "play_score": m.play_score,
