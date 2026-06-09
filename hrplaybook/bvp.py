@@ -15,6 +15,10 @@ NON_AB = {"walk", "intent_walk", "hit_by_pitch", "sac_fly", "sac_bunt",
           "sac_fly_double_play", "sac_bunt_double_play", "catcher_interf"}
 BB_EVENTS = {"walk", "intent_walk"}
 K_EVENTS = {"strikeout", "strikeout_double_play"}
+# true balls in play (excludes fouls, which can carry a launch_speed but are NOT
+# PA-ending batted balls) -- used for hard-hit/barrel/EV history so counts can't
+# exceed plate appearances.
+INPLAY_BB = {"ground_ball", "fly_ball", "line_drive", "popup"}
 
 # max share of a market's probability BvP may swing (guardrail; never exceeded)
 MAX_WEIGHT = {"HR": 0.05, "TB": 0.08, "Hits": 0.10, "HRR": 0.08}
@@ -61,7 +65,9 @@ def aggregate(rows: List[dict]) -> dict:
     hits = singles + doubles + triples + hr
     ab = max(0, pa - non_ab)
     tb = singles + 2 * doubles + 3 * triples + 4 * hr
-    bb_rows = [r for r in rows if r.get("launch_speed") is not None]
+    # balls in play only (exclude fouls) so EV/barrel/hard-hit counts <= PA
+    bb_rows = [r for r in rows if r.get("launch_speed") is not None
+               and r.get("bb_type") in INPLAY_BB]
     evs = [r["launch_speed"] for r in bb_rows]
     las = [r["launch_angle"] for r in bb_rows if r.get("launch_angle") is not None]
     dists = [r["hit_distance_sc"] for r in bb_rows if r.get("hit_distance_sc") is not None]
@@ -125,7 +131,8 @@ def grade(s: dict) -> dict:
         reasons.append(f"Only {s['pa']} career PA — too small to trust.")
         tags.append("BVP_TOO_SMALL")
         return {"score": 0, "grade": "TOO_SMALL", "edge_label": "TOO_SMALL_SAMPLE",
-                "reasons": reasons, "tags": tags}
+                "reasons": reasons, "tags": tags,
+                "small_sample": True, "grade_capped": False}
     sc = _score(s)
     if s["hr"] >= 1:
         reasons.append(f"{s['hr']} HR in {s['pa']} PA vs this pitcher")
@@ -133,10 +140,10 @@ def grade(s: dict) -> dict:
     if xbh >= 2:
         reasons.append(f"{xbh} extra-base hits in {s['pa']} PA")
     if s["ev100"] >= 2:
-        reasons.append(f"{s['ev100']} balls 100+ EV vs this pitcher")
+        reasons.append(f"{s['ev100']} balls in play 100+ mph vs this pitcher")
         tags.append("BVP_HARD_CONTACT")
     elif s["hardhit"] >= 3:
-        reasons.append(f"{s['hardhit']} hard-hit balls vs this pitcher")
+        reasons.append(f"{s['hardhit']} hard-hit balls in play vs this pitcher")
         tags.append("BVP_HARD_CONTACT")
     if s["pa"] >= 5 and s["k"] / s["pa"] >= 0.40:
         reasons.append(f"{s['k']} strikeouts in {s['pa']} PA — strikeout risk")
@@ -156,9 +163,17 @@ def grade(s: dict) -> dict:
         tags.append("BVP_BAD_HISTORY")
     else:
         edge = "NEUTRAL"
+    # SMALL-sample guardrail: never present a 3-7 PA edge as a clean A/A+.
+    small_sample = (label == "SMALL")
+    grade_capped = False
+    if small_sample and g in ("A+", "A"):
+        g = "B"
+        grade_capped = True
+        reasons.append(f"small sample ({s['pa']} PA) — grade capped, treat as context only")
     if not reasons:
         reasons.append(f"{s['pa']} PA, {s['hits']}-for-{s['ab']} — no standout signal")
-    return {"score": sc, "grade": g, "edge_label": edge, "reasons": reasons, "tags": tags}
+    return {"score": sc, "grade": g, "edge_label": edge, "reasons": reasons,
+            "tags": tags, "small_sample": small_sample, "grade_capped": grade_capped}
 
 
 def max_weight(market: str, label: str) -> float:

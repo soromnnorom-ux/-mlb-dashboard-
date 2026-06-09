@@ -273,6 +273,8 @@ def _bvp_row(m: dict) -> dict:
         "barrels": _f(m, "bvp_barrels"), "hardhit": _f(m, "bvp_hardhit"),
         "grade": m.get("bvp_grade"), "sample_size": m.get("bvp_sample_size"),
         "confidence": m.get("bvp_confidence"), "edge_label": m.get("bvp_edge_label"),
+        "small_sample": str(m.get("bvp_small_sample")).lower() == "true",
+        "grade_capped": str(m.get("bvp_grade_capped")).lower() == "true",
         "reasons": _split(m.get("bvp_reasons")),
     }
 

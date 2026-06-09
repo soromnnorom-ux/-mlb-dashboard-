@@ -66,6 +66,9 @@
   .mono{font-variant-numeric:tabular-nums}
   .ev-pos{color:#7ee787}.ev-neg{color:#f85149}
   h3{margin:18px 0 8px;font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+  #slateBar{padding:5px 16px;background:#10151c;border-bottom:1px solid var(--line);font-size:12px;color:var(--muted)}
+  #slateBar b{color:var(--text)}
+  #slateBar .warn{color:#f0a064}
   /* propfinder-style cheatsheet */
   .chips{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
   .chip{background:var(--panel2);border:1px solid var(--line);border-radius:20px;padding:5px 14px;
@@ -181,6 +184,7 @@
   <button data-tab="ledger">Ledger</button>
   <button data-tab="glossary">Glossary</button>
 </nav>
+<div id="slateBar"></div>
 <main id="view"><div class="empty">Loading…</div></main>
 <div id="tip"></div>
 
@@ -205,20 +209,47 @@ async function api(path, opts){const r=await fetch(path,opts); if(!r.ok) throw n
 
 async function loadDates(){
   const d = await api("/api/dates");
+  STATE.today = d.today;
   const sel = $("#dateSel"); sel.innerHTML="";
-  (d.dates.length?d.dates:[d.today]).forEach(x=>{
+  const dates = (d.dates && d.dates.length) ? d.dates.slice() : [d.today];
+  if(!STATE.date) STATE.date = dates[0] || d.today;       // first load default
+  if(!dates.includes(STATE.date)) dates.unshift(STATE.date);
+  dates.forEach(x=>{
     const o=document.createElement("option"); o.value=x; o.textContent=x; sel.appendChild(o);
   });
-  $("#dateInput").value = d.today;
-  STATE.date = sel.value || d.today;
-  sel.value = STATE.date;
+  syncDateControls();
 }
+
+// --- single source of truth for the selected date ---
+function syncDateControls(){
+  const sel=$("#dateSel");
+  if(![...sel.options].some(o=>o.value===STATE.date)){
+    const o=document.createElement("option"); o.value=STATE.date; o.textContent=STATE.date; sel.appendChild(o);
+  }
+  if(sel.value!==STATE.date) sel.value=STATE.date;
+  if($("#dateInput").value!==STATE.date) $("#dateInput").value=STATE.date;
+  updateSlateBar();
+}
+function updateSlateBar(){
+  const el=$("#slateBar"); if(!el) return;
+  let html=`Viewing slate: <b>${STATE.date||"—"}</b>`;
+  if(STATE.today && STATE.date && STATE.date!==STATE.today)
+    html+=` <span class="sp">(today is ${STATE.today})</span>`;
+  if(STATE.slate && STATE.slate.exists===false)
+    html+=` <span class="warn">⚠ no slate built for this date</span>`;
+  else if(STATE.slate && STATE.slate.date && STATE.slate.date!==STATE.date)
+    html+=` <span class="warn">⚠ showing data from ${STATE.slate.date}</span>`;
+  if(STATE.lastGraded) html+=` · Last graded: <b>${STATE.lastGraded}</b>`;
+  el.innerHTML=html;
+}
+function setDate(d){ if(!d) return; STATE.date=d; STATE.slate=null; syncDateControls(); loadSlate(); }
 
 async function loadSlate(){
   if(!STATE.date) return;
-  $("#dateSel").value = STATE.date;
   try{ STATE.slate = await api("/api/slate/"+STATE.date); }
   catch(e){ STATE.slate={exists:false,games:[],matchups:[]}; }
+  STATE.slate.date = STATE.slate.date || STATE.date;
+  syncDateControls();
   render();
 }
 
@@ -716,13 +747,20 @@ async function renderBvP(){
     <b>BvP is a supporting signal only.</b> Do not bet a player just because of past success vs a pitcher — small samples mislead. Sample size & confidence shown on every row.</div></div>`;
   const tbl=(title,rows)=>!rows.length?`<h3>${title}</h3><div class="sp" style="color:var(--muted)">none</div>`:
     `<h3>${title} (${rows.length})</h3><div class="panel"><table class="cs"><thead><tr>
-      <th>Player</th><th>Tm</th><th>vs SP</th><th>PA</th><th>AVG</th><th>SLG</th><th>HR</th><th>K</th>
+      <th>Player</th><th>Tm</th><th>vs SP</th><th>PA</th><th>Sample</th><th>Conf</th><th>AVG</th><th>SLG</th><th>HR</th><th>K</th>
       <th>maxEV</th><th>brl</th><th>Grade</th><th>History</th><th>Reasons</th></tr></thead><tbody>`+
-    rows.map(r=>`<tr><td><b>${r.batter}</b></td><td>${r.team}</td><td>${r.opp_sp||r.opp_team}</td>
-      <td class="mono">${r.pa??0}</td><td class="mono">${fmt3(r.avg)}</td><td class="mono">${fmt3(r.slg)}</td>
+    rows.map(r=>{
+      const sampCls={STRONG:'g-A',USEFUL:'g-B',SMALL:'g-C',TOO_SMALL:'g-D'}[r.sample_size]||'g-C';
+      const gradeTxt=(r.grade||'—')+(r.grade_capped?' *':'');
+      const histTxt=bvpBadge(r.edge_label)+(r.small_sample&&r.edge_label!=='TOO_SMALL_SAMPLE'?' <span class="tag" style="color:#e3b341;border-color:#5a4400">SMALL SAMPLE</span>':'');
+      return `<tr><td><b>${r.batter}</b></td><td>${r.team}</td><td>${r.opp_sp||r.opp_team}</td>
+      <td class="mono">${r.pa??0}</td>
+      <td><span class="gpill ${sampCls}">${r.sample_size||'—'}</span></td>
+      <td class="sp">${r.confidence||'—'}</td>
+      <td class="mono">${fmt3(r.avg)}</td><td class="mono">${fmt3(r.slg)}</td>
       <td class="mono">${r.hr??0}</td><td class="mono">${r.k??0}</td><td class="mono">${r.max_ev??'—'}</td>
-      <td class="mono">${r.barrels??0}</td><td><span class="gpill ${gradeCls(r.grade)}">${r.grade||'—'}</span></td>
-      <td>${bvpBadge(r.edge_label)}</td><td class="sp" style="color:#adbac7">${(r.reasons||[]).slice(0,2).join(" · ")}</td></tr>`).join("")
+      <td class="mono">${r.barrels??0}</td><td><span class="gpill ${gradeCls(r.grade)}">${gradeTxt}</span></td>
+      <td>${histTxt}</td><td class="sp" style="color:#adbac7">${(r.reasons||[]).slice(0,2).join(" · ")}</td></tr>`;}).join("")
     +`</tbody></table></div>`;
   const minpa=STATE.bvpMinPA||0;
   const full=(d.full||[]).filter(r=>(r.pa||0)>=minpa);
@@ -1088,7 +1126,7 @@ let POLL=null;
 function setStatus(cls,txt){ $("#status").innerHTML=`<span class="dot ${cls}"></span>${txt}`; }
 function busy(b){ ["btnRun","btnRefresh","btnGrade"].forEach(id=>$("#"+id).disabled=b); }
 async function trigger(kind){
-  const date = kind==="run" ? ($("#dateInput").value||$("#dateSel").value) : $("#dateSel").value;
+  const date = STATE.date;          // single source of truth for every action
   busy(true); setStatus("run", kind+" "+date+" …");
   let job;
   try{ job = await api("/api/"+kind,{method:"POST",headers:{"Content-Type":"application/json"},
@@ -1101,9 +1139,10 @@ async function trigger(kind){
     clearInterval(POLL); busy(false);
     if(j.state==="error"){ setStatus("err", (j.error||"error").slice(0,60)); return; }
     const r=j.result||{};
-    setStatus("ok", kind==="grade"?"graded "+date : `done · ${r.games||0}g ${r.tier1||0} T1`);
-    STATE.date=j.date; await loadDates(); $("#dateSel").value=j.date;
-    if(kind==="grade"){ STATE.tab="ledger"; setTab(); } else { await loadSlate(); }
+    if(kind==="grade"){ STATE.lastGraded=j.date; setStatus("ok","Last graded: "+j.date); }
+    else setStatus("ok", `done · ${r.games||0}g ${r.tier1||0} T1`);
+    STATE.date=j.date; await loadDates();
+    if(kind==="grade"){ STATE.tab="ledger"; setTab(); updateSlateBar(); } else { await loadSlate(); }
   }, 1500);
 }
 
@@ -1113,7 +1152,8 @@ function setTab(){
   attachHeaderTips();
 }
 document.querySelectorAll("#tabs button").forEach(b=>b.onclick=()=>{STATE.tab=b.dataset.tab; setTab();});
-$("#dateSel").onchange=e=>{STATE.date=e.target.value; loadSlate();};
+$("#dateSel").onchange=e=>setDate(e.target.value);
+$("#dateInput").onchange=e=>setDate(e.target.value);
 $("#btnRun").onclick=()=>trigger("run");
 $("#btnRefresh").onclick=()=>trigger("refresh");
 $("#btnGrade").onclick=()=>trigger("grade");

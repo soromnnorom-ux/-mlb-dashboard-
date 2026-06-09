@@ -185,6 +185,8 @@ def _matchup_rows(matchups: List[Matchup]) -> List[dict]:
             "bvp_sample_size": (b.bvp or {}).get("sample_size"),
             "bvp_confidence": (b.bvp or {}).get("confidence"),
             "bvp_edge_label": (b.bvp or {}).get("edge_label"),
+            "bvp_small_sample": (b.bvp or {}).get("small_sample"),
+            "bvp_grade_capped": (b.bvp or {}).get("grade_capped"),
             "bvp_pa": (b.bvp or {}).get("pa"),
             "bvp_avg": (b.bvp or {}).get("avg"),
             "bvp_slg": (b.bvp or {}).get("slg"),
