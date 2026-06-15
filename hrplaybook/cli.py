@@ -248,23 +248,42 @@ def lineups(
         client.close()
 
 
+def build_cron(proj: Path, hour_morning: int, hour_refresh: int, exe: str) -> str:
+    """Local crontab snippet for the daily game-day routine.
+
+    Cron fields are `minute hour dom mon dow` -> `0 H * * *` = H:00 local.
+    Morning: grade yesterday (grows the ledger/calibration) then build today.
+    Pre-first-pitch: pull confirmed lineups + live odds for today's slate.
+    """
+    log = f"{proj}/out/cron.log"
+    return (
+        f"# hrplaybook game-day automation (added {now_stamp()})\n"
+        f"0 {hour_morning} * * *  cd {proj} && {exe} grade --date yesterday >> {log} 2>&1 && "
+        f"{exe} run --date today --full-statcast >> {log} 2>&1\n"
+        f"0 {hour_refresh} * * *  cd {proj} && {exe} refresh --date today >> {log} 2>&1 && "
+        f"{exe} odds-refresh --date today >> {log} 2>&1\n"
+    )
+
+
 @app.command("schedule-install")
 def schedule_install(
-    hour_run: int = typer.Option(9, help="hour to run morning build (local)"),
-    hour_refresh: int = typer.Option(16, help="hour to refresh near first pitch"),
+    hour_morning: int = typer.Option(9, help="local hour for grade-yesterday + build-today"),
+    hour_refresh: int = typer.Option(16, help="local hour for lineups + odds refresh (pre-first-pitch)"),
 ):
-    """Write a crontab snippet that runs the morning build + an afternoon refresh."""
-    exe = "hrplaybook"
+    """Write a crontab snippet for the daily game-day routine (local cron)."""
     proj = Path.cwd()
-    snippet = (
-        f"# hrplaybook daily automation (added {now_stamp()})\n"
-        f"{hour_run} 0  * * *  cd {proj} && {exe} run --date today >> {proj}/out/cron.log 2>&1\n"
-        f"{hour_refresh} 0 * * *  cd {proj} && {exe} refresh --date today >> {proj}/out/cron.log 2>&1\n"
-    )
+    exe = str(proj / ".venv" / "bin" / "hrplaybook")
+    if not Path(exe).exists():
+        exe = "hrplaybook"
+    snippet = build_cron(proj, hour_morning, hour_refresh, exe)
     out = proj / "out" / "hrplaybook.cron"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(snippet)
-    typer.echo(f"Wrote {out}\nInstall with:  crontab -l 2>/dev/null | cat - {out} | crontab -")
+    typer.echo(snippet)
+    typer.echo(f"Wrote {out}")
+    typer.echo(f"Install:  crontab -l 2>/dev/null | cat - {out} | crontab -")
+    typer.echo("(Local cron — runs on THIS machine so it can read .env + the out/ cache. "
+               "A remote /schedule agent cannot drive a local install.)")
 
 
 @app.command("odds-refresh")

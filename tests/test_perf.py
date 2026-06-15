@@ -56,3 +56,13 @@ def test_pa_events_tagged_and_grouped():
     parsed = savant.parse_pa_events(_csv(rows, cols))
     g = savant.group_pa_events_by_batter(parsed)
     assert len(g[1]) == 2 and len(g[2]) == 1
+
+
+def test_build_cron_has_correct_fields():
+    from pathlib import Path
+    from hrplaybook.cli import build_cron
+    snip = build_cron(Path("/proj"), 9, 16, "hrplaybook")
+    # cron is `minute hour dom mon dow` -> 0 9 ... = 9:00am (regression: was 9 0 = 12:09am)
+    assert "0 9 * * *" in snip and "0 16 * * *" in snip
+    assert "grade --date yesterday" in snip and "run --date today" in snip
+    assert "refresh --date today" in snip and "odds-refresh --date today" in snip
