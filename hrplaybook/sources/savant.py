@@ -173,14 +173,34 @@ def fetch_statcast_batter(client: Client, batter_id: int, start: str, end: str) 
     return client.get_text("savant", url, params)
 
 
+def fetch_statcast_batters(client: Client, batter_ids: List[int],
+                           start: str, end: str) -> Optional[str]:
+    """Batched recent-window pull for MANY batters in one request.
+
+    statcast_search accepts repeated batters_lookup[] and tags every row with its
+    `batter` id, so one call per GAME (≈18 hitters) replaces ~18 per-batter calls
+    — turning a slate's ~270 statcast requests into ~15 while staying at 1 req/sec.
+    """
+    if not batter_ids:
+        return None
+    url = f"{BASE}/statcast_search/csv"
+    params = {
+        "all": "true", "type": "details", "player_type": "batter",
+        "batters_lookup[]": list(batter_ids),
+        "game_date_gt": start, "game_date_lt": end, "min_results": 0,
+    }
+    return client.get_text("savant", url, params)
+
+
 def parse_statcast(text: Optional[str]) -> List[dict]:
-    """One dict per *batted ball* (rows with a launch_speed)."""
+    """One dict per *batted ball* (rows with a launch_speed). Tagged with batter id."""
     out: List[dict] = []
     for row in _read_csv(text):
         ev = to_float(row.get("launch_speed"))
         if ev is None:
             continue
         out.append({
+            "batter": to_int(row.get("batter")),
             "game_date": row.get("game_date"),
             "pitch_type": (row.get("pitch_type") or "").strip().upper(),
             "events": (row.get("events") or "").strip(),
@@ -191,6 +211,16 @@ def parse_statcast(text: Optional[str]) -> List[dict]:
             "stand": (row.get("stand") or "").strip().upper(),       # batter hand
             "p_throws": (row.get("p_throws") or "").strip().upper(),  # pitcher hand
         })
+    return out
+
+
+def group_statcast_by_batter(rows: List[dict]) -> Dict[int, List[dict]]:
+    """Split batched statcast rows into {batter_id: [rows]} for per-batter enrich."""
+    out: Dict[int, List[dict]] = {}
+    for r in rows:
+        bid = r.get("batter")
+        if bid is not None:
+            out.setdefault(bid, []).append(r)
     return out
 
 
@@ -205,7 +235,17 @@ def parse_pa_events(text: Optional[str]) -> List[dict]:
         ev = (row.get("events") or "").strip()
         if not ev:
             continue
-        out.append({"game_date": row.get("game_date"), "events": ev})
+        out.append({"batter": to_int(row.get("batter")),
+                    "game_date": row.get("game_date"), "events": ev})
+    return out
+
+
+def group_pa_events_by_batter(rows: List[dict]) -> Dict[int, List[dict]]:
+    out: Dict[int, List[dict]] = {}
+    for r in rows:
+        bid = r.get("batter")
+        if bid is not None:
+            out.setdefault(bid, []).append(r)
     return out
 
 

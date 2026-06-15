@@ -517,8 +517,11 @@ function renderMatchups(){
       <input id="mFilter" placeholder="filter… (name, team, tag)" value="${STATE.filter}" style="width:260px"/>
       <span class="sp" style="color:var(--muted);align-self:center">${ms.length} rows · ${simple?'simple':'advanced'}</span></div>
     <div class="panel"><table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
-  $("#mFilter").oninput=e=>{STATE.filter=e.target.value; const p=e.target.selectionStart; renderMatchups();
-     const el=$("#mFilter"); el.focus(); el.setSelectionRange(p,p);};
+  // debounce: re-render the (up to 270-row) table at most ~7x/sec, not on every keystroke
+  $("#mFilter").oninput=e=>{STATE.filter=e.target.value;
+     clearTimeout(window._mFilterT);
+     window._mFilterT=setTimeout(()=>{renderMatchups();
+       const el=$("#mFilter"); if(el){el.focus(); el.setSelectionRange(el.value.length,el.value.length);}}, 140);};
   document.querySelectorAll("th[data-k]").forEach(th=>th.onclick=()=>{
     const k=th.dataset.k; STATE.sort = STATE.sort.key===k?{key:k,dir:-STATE.sort.dir}:{key:k,dir:-1};
     renderMatchups();});
