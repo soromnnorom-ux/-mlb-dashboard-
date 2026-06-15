@@ -261,11 +261,39 @@ def fetch_statcast_bvp(client: Client, batter_id: int, pitcher_id: int,
     return client.get_text("savant", url, params)
 
 
+def fetch_statcast_bvp_multi(client: Client, batter_ids: List[int], pitcher_id: int,
+                             start: str, end: str) -> Optional[str]:
+    """Career history for MANY batters vs ONE pitcher in a single request.
+
+    All hitters on a side face the same starter, so one call per side replaces
+    ~9 per-batter BvP calls. Rows are tagged with `batter` for regrouping.
+    """
+    if not batter_ids or not pitcher_id:
+        return None
+    url = f"{BASE}/statcast_search/csv"
+    params = {
+        "all": "true", "type": "details", "player_type": "batter",
+        "batters_lookup[]": list(batter_ids), "pitchers_lookup[]": [pitcher_id],
+        "game_date_gt": start, "game_date_lt": end, "min_results": 0,
+    }
+    return client.get_text("savant", url, params)
+
+
+def group_bvp_by_batter(rows: List[dict]) -> Dict[int, List[dict]]:
+    out: Dict[int, List[dict]] = {}
+    for r in rows:
+        bid = r.get("batter")
+        if bid is not None:
+            out.setdefault(bid, []).append(r)
+    return out
+
+
 def parse_bvp(text: Optional[str]) -> List[dict]:
-    """One dict per pitch (includes non-contact pitches), newest first."""
+    """One dict per pitch (includes non-contact pitches), newest first. Batter-tagged."""
     out: List[dict] = []
     for row in _read_csv(text):
         out.append({
+            "batter": to_int(row.get("batter")),
             "game_date": row.get("game_date"),
             "inning": to_int(row.get("inning")),
             "balls": to_int(row.get("balls")),

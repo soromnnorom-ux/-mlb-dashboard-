@@ -204,7 +204,12 @@ def build_slate(
     pulled_at = now_stamp()
     win_start = window_start(date, cfg.recent_window_days)
     bvp_start = f"{cfg.season - 3}-01-01"   # ~3-season BvP career window
-    stat_n = 0
+
+    # --- Phase A: resolve every batter (no network) + collect who needs a pull.
+    # Same eligibility predicate as before -> identical set of enriched batters.
+    records: List[dict] = []
+    elig_by_game: Dict[int, set] = {}                  # game_pk -> {batter_id}
+    elig_by_side: Dict[tuple, set] = {}                # (game_pk, opp_pid) -> {batter_id}
     for g in games:
         box = statsapi.fetch_boxscore(client, g.game_pk)
         for side in ("home", "away"):
@@ -222,45 +227,71 @@ def build_slate(
                 if entry.get("bats") and not b.bats:
                     b.bats = entry["bats"]
                 b.s2025 = seasons.batter_baseline(batter_pool_2025.get(b.player_id))
-
-                # pull the Statcast window unless disabled or a clear non-threat
-                if use_statcast and b.player_id > 0 and not (
-                        not full_statcast and _weak_non_threat(b)):
-                    text = savant.fetch_statcast_batter(client, b.player_id, win_start, date)
-                    balls = savant.parse_statcast(text)
-                    enrich_batter(b, balls, savant.parse_pa_events(text), opp_pitcher, cfg)
-                    b.win30 = seasons.window_metrics(balls, date, 30)
-                    b.win14 = seasons.window_metrics(balls, date, 14)
-                    b.win7 = seasons.window_metrics(balls, date, 7)
-                    # BvP: career history vs the opposing starter (supporting only)
+                eligible = (use_statcast and b.player_id > 0
+                            and not (not full_statcast and _weak_non_threat(b)))
+                records.append({"b": b, "game": g, "side": side, "state": state,
+                                "opp_pitcher": opp_pitcher, "opp_team": opp_team,
+                                "eligible": eligible})
+                if eligible:
+                    elig_by_game.setdefault(g.game_pk, set()).add(b.player_id)
                     if opp_pitcher and opp_pitcher.player_id:
-                        b.bvp = bvp.build(savant.parse_bvp(savant.fetch_statcast_bvp(
-                            client, b.player_id, opp_pitcher.player_id, bvp_start, date)))
-                        if b.bvp:
-                            b.tags.extend(t for t in b.bvp.get("tags", []) if t not in b.tags)
-                    stat_n += 1
-                    if progress and stat_n % 20 == 0:
-                        _progress(f"   …statcast pulled for {stat_n} batters")
-                elif b.barrel_vs_pm is None:
-                    b.barrel_vs_pm = b.barrel_pct  # fallback when statcast skipped
+                        elig_by_side.setdefault((g.game_pk, opp_pitcher.player_id),
+                                                set()).add(b.player_id)
 
-                # multi-season weighted profile + trend (display/trend only)
-                _cur = {"barrel_pct": b.barrel_pct, "avg_ev": b.avg_ev,
-                        "hardhit_pct": b.hardhit_pct}
-                b.weighted = seasons.weighted_profile(b.s2025, _cur, b.win30,
-                                                      bet="HR", pa_2026=b.pa)
-                b.trend = seasons.batter_trend(b.s2025, _cur, b.win30, pa_2026=b.pa)
-                b.sample_warnings = list(b.weighted.get("warnings", []))
+    # --- Phase B: ONE statcast call per game + ONE BvP call per side, regrouped
+    # per batter (replaces ~540 serial calls with ~45; same rows per batter).
+    statcast_groups: Dict[int, dict] = {}
+    for ids in elig_by_game.values():
+        text = savant.fetch_statcast_batters(client, sorted(ids), win_start, date)
+        balls_by = savant.group_statcast_by_batter(savant.parse_statcast(text))
+        pa_by = savant.group_pa_events_by_batter(savant.parse_pa_events(text))
+        for bid in ids:
+            statcast_groups[bid] = {"balls": balls_by.get(bid, []),
+                                    "pa": pa_by.get(bid, [])}
+    bvp_groups: Dict[tuple, list] = {}
+    for (game_pk, pid), ids in elig_by_side.items():
+        text = savant.fetch_statcast_bvp_multi(client, sorted(ids), pid, bvp_start, date)
+        by = savant.group_bvp_by_batter(savant.parse_bvp(text))
+        for bid in ids:
+            bvp_groups[(bid, pid)] = by.get(bid, [])
 
-                m = Matchup(batter=b, pitcher=opp_pitcher, game=g, side=side,
-                            opp_team=opp_team)
-                m.env_score = g.env_score
-                m.env_tier = g.env_tier
-                m.pitcher_score = opp_pitcher.pitcher_score if opp_pitcher else 0
-                m.opp_bullpen_hr9 = bullpen.get(opp_team)
-                score_matchup(m, cfg)
-                map_bets(m, cfg)
-                matchups.append(m)
+    # --- Phase C: enrich + score (pure CPU; identical to the old per-batter path)
+    stat_n = 0
+    for r in records:
+        b, opp_pitcher = r["b"], r["opp_pitcher"]
+        if r["eligible"]:
+            sg = statcast_groups.get(b.player_id) or {"balls": [], "pa": []}
+            balls = sg["balls"]
+            enrich_batter(b, balls, sg["pa"], opp_pitcher, cfg)
+            b.win30 = seasons.window_metrics(balls, date, 30)
+            b.win14 = seasons.window_metrics(balls, date, 14)
+            b.win7 = seasons.window_metrics(balls, date, 7)
+            if opp_pitcher and opp_pitcher.player_id:
+                b.bvp = bvp.build(bvp_groups.get((b.player_id, opp_pitcher.player_id), []))
+                if b.bvp:
+                    b.tags.extend(t for t in b.bvp.get("tags", []) if t not in b.tags)
+            stat_n += 1
+            if progress and stat_n % 20 == 0:
+                _progress(f"   …statcast enriched for {stat_n} batters")
+        elif b.barrel_vs_pm is None:
+            b.barrel_vs_pm = b.barrel_pct  # fallback when statcast skipped
+
+        _cur = {"barrel_pct": b.barrel_pct, "avg_ev": b.avg_ev,
+                "hardhit_pct": b.hardhit_pct}
+        b.weighted = seasons.weighted_profile(b.s2025, _cur, b.win30,
+                                              bet="HR", pa_2026=b.pa)
+        b.trend = seasons.batter_trend(b.s2025, _cur, b.win30, pa_2026=b.pa)
+        b.sample_warnings = list(b.weighted.get("warnings", []))
+
+        m = Matchup(batter=b, pitcher=opp_pitcher, game=r["game"], side=r["side"],
+                    opp_team=r["opp_team"])
+        m.env_score = r["game"].env_score
+        m.env_tier = r["game"].env_tier
+        m.pitcher_score = opp_pitcher.pitcher_score if opp_pitcher else 0
+        m.opp_bullpen_hr9 = bullpen.get(r["opp_team"])
+        score_matchup(m, cfg)
+        map_bets(m, cfg)
+        matchups.append(m)
 
     # 8. cap HR plays
     finalize_tiers(matchups, cfg)
