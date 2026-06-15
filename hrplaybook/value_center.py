@@ -129,6 +129,27 @@ def _best_price(entries: List[dict]) -> Optional[dict]:
     return min(priced, key=lambda e: implied_prob(e["odds"]) or 1.0)
 
 
+# The threshold each market's model probability is calibrated for (Over X -> >=N):
+#   HR/Hits/RBI = 1+, TB/HRR = 2+. An odds line for a DIFFERENT threshold
+#   (e.g. a manual "2.5 TB" = 3+ TB) must NOT be priced against the 2+ model.
+CANON_THR = {"HR": 1, "TB": 2, "HRR": 2, "Hits": 1, "RBI": 1}
+
+
+def _entry_thr(entry: dict) -> Optional[int]:
+    """Threshold a line represents (Over 1.5 -> 2, '2+ TB' -> 2). None if unknown."""
+    from .grade import parse_line
+    parsed = parse_line(entry.get("line") or "")
+    return parsed[1] if parsed else None
+
+
+def _line_matches(entry: dict, market: str) -> bool:
+    want = CANON_THR.get(market)
+    if want is None:
+        return True
+    thr = _entry_thr(entry)
+    return thr is None or thr == want   # blank/unknown line = assume canonical
+
+
 # --------------------------------------------------------------------------- #
 # Market vs Model
 # --------------------------------------------------------------------------- #
@@ -141,7 +162,11 @@ def _row(m: dict, market: str, entries: List[dict], now, tables=None) -> dict:
         mp, cal_warn, cal_conf = cal["calibrated"], cal["warning"], cal["confidence"]
     else:
         mp, cal_warn, cal_conf = raw, "NO_CALIBRATION_DATA", "none"
-    best = _best_price(entries) if entries else None
+    # Only price the model against odds whose line matches the market threshold;
+    # mismatched-line odds (e.g. manual 2.5 TB vs a 2+ model) stay visible but
+    # never drive the edge/value grade.
+    usable = [e for e in (entries or []) if _line_matches(e, market)]
+    best = _best_price(usable) if usable else None
     odds = best["odds"] if best else None
     imp = implied_prob(odds)
     edge = round(mp - imp, 4) if (mp is not None and imp is not None) else None
@@ -160,7 +185,9 @@ def _row(m: dict, market: str, entries: List[dict], now, tables=None) -> dict:
         "stale": staleness(best.get("timestamp"), best.get("source", "manual"), now) if best else "unknown",
         "all_prices": [
             {"sportsbook": e.get("sportsbook"), "odds": e.get("odds"),
-             "source": e.get("source"), "best": (best is not None and e is best)}
+             "source": e.get("source"), "line": e.get("line"),
+             "line_ok": _line_matches(e, market),
+             "best": (best is not None and e is best)}
             for e in (entries or [])
         ],
         "model_score": featured.market_scores(m).get(market, {}).get("score") if market in featured.MARKETS else None,
