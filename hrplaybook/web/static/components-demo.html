@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>HR Playbook — UI Components</title>
+<link rel="stylesheet" href="/static/components.css"/>
+<style>
+  body{margin:0;background:var(--ui-bg);color:var(--ui-text);
+    font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;padding:20px;max-width:1100px;margin:auto}
+  h1{font-size:18px} h2{font-size:13px;color:var(--ui-muted);text-transform:uppercase;
+    letter-spacing:.5px;margin:26px 0 10px;border-bottom:1px solid var(--ui-line);padding-bottom:6px}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .demo-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:560px){.demo-grid{grid-template-columns:1fr}}
+  code{color:var(--ui-accent)}
+</style>
+</head>
+<body class="ui">
+<h1>HR Playbook — UI Component Library <span class="ui-card__sub">accessible · framework-free</span></h1>
+
+<h2>Badges &amp; grades</h2>
+<div class="row" id="badges"></div>
+
+<h2>Stat cards</h2>
+<div class="row" id="stats"></div>
+
+<h2>Tags (cap 3 + “+N more”) &amp; confidence stars</h2>
+<div class="row" id="tags"></div>
+<div class="row" id="stars" style="margin-top:8px"></div>
+
+<h2>Player cards (grid, responsive)</h2>
+<div class="ui-grid" id="cards"></div>
+
+<h2>Chips (toggle) — events echo below</h2>
+<div id="chips"></div>
+<div class="ui-card__sub" id="chipEcho" aria-live="polite" style="margin-top:6px">no selection yet</div>
+
+<h2>Table — states</h2>
+<div class="row" style="margin-bottom:8px">
+  <button class="ui-btn" id="loadBtn">Simulate load</button>
+  <button class="ui-btn ui-btn--ghost" id="emptyBtn">Show empty</button>
+  <button class="ui-btn ui-btn--ghost" id="errorBtn">Show error</button>
+</div>
+<div id="table"></div>
+
+<h2>Tabs (arrow / Home / End keys)</h2>
+<div id="tabs"></div>
+
+<h2>Expandable “view details”</h2>
+<div id="exp"></div>
+
+<h2>Spinner</h2>
+<div class="row" id="spin"></div>
+
+<script src="/static/components.js"></script>
+<script>
+const $ = (s) => document.querySelector(s);
+
+$("#badges").innerHTML = ["A+","A","B","C","D","TOO_SMALL"].map(g=>UI.grade(g)).join(" ")
+  + " " + UI.badge("+EV","green") + UI.badge("-EV","red") + UI.badge("PITCH MIX","purple")
+  + UI.badge("projected","yellow") + UI.badge("no data","gray");
+
+$("#stats").innerHTML = [UI.stat("A+","slate grade"),UI.stat(9,"good+ env"),
+  UI.stat("25","attackable SP"),UI.stat("7.6%","nuclear")].join("");
+
+$("#tags").innerHTML = UI.tags(["VALUE_ALERT","NUCLEAR_CONTACT","HOT_CONTACT","MISSED_HR","LATE_HR","REGRESSION_SPOT"]);
+$("#stars").innerHTML = [5,4,3,2,1].map(n=>UI.stars(n)).join(" &nbsp; ");
+
+$("#cards").innerHTML = [
+  UI.card({title:"Best HR Play", name:"Kyle Schwarber", sub:"PHI vs Patrick Corbin · <b>HR</b>",
+    grade:"A+", stars:5, body:`<div class="ui-card__sub">${UI.tags(["HOT_CONTACT","MISSED_HR","NUCLEAR_CONTACT","LATE_HR"])}</div>`}),
+  UI.card({title:"Best 2+ TB Play", name:"Yordan Alvarez", sub:"HOU vs Weak Arm · <b>2+ TB</b>",
+    grade:"A", stars:4, body:`<div class="ui-card__sub">cal 50% (raw 83%) · edge +2%</div>`}),
+];
+
+$("#chips").innerHTML = UI.chips(
+  [{value:"All",label:"All",pressed:true},{value:"HR",label:"HR"},
+   {value:"TB",label:"TB"},{value:"HRR",label:"HRR"},{value:"Hits",label:"Hits"}], {group:"market"});
+document.addEventListener("ui:chip",(e)=>{ $("#chipEcho").textContent =
+  `toggled ${e.detail.value} -> pressed=${e.detail.pressed}`; });
+
+// table demo with sortable headers + state switching
+const COLS=[
+  {key:"player",label:"Player"},{key:"team",label:"Tm"},
+  {key:"score",label:"Score",sortable:true,align:"right",render:r=>UI.grade(r.grade)+" "+r.score},
+  {key:"value",label:"Value",render:r=>UI.badge(r.value, r.value==="+EV"?"green":r.value==="-EV"?"red":"gray")},
+  {key:"tags",label:"Tags",render:r=>UI.tags(r.tags)},
+];
+const ROWS=[
+  {player:"Schwarber",team:"PHI",score:94,grade:"A+",value:"+EV",tags:["HOT_CONTACT","MISSED_HR","LATE_HR","NUCLEAR_CONTACT"]},
+  {player:"Alvarez",team:"HOU",score:88,grade:"A",value:"-EV",tags:["HOT_CONTACT"]},
+  {player:"Happ",team:"CHC",score:71,grade:"B",value:"Unknown",tags:[]},
+];
+let sort={key:"score",dir:-1};
+function renderTable(){
+  const rows=[...ROWS].sort((a,b)=>(a.score-b.score)*sort.dir);
+  UI.mount("#table", UI.table({columns:COLS, rows, sort, caption:"Top plays (demo)", minWidth:560}));
+}
+renderTable();
+document.addEventListener("click",(e)=>{const b=e.target.closest("[data-ui-sort]"); if(!b) return;
+  const k=b.dataset.uiSort; sort = sort.key===k?{key:k,dir:-sort.dir}:{key:k,dir:-1}; renderTable();});
+$("#loadBtn").onclick=()=>{ UI.mount("#table", UI.skeleton(4,5)); setTimeout(renderTable, 1100); };
+$("#emptyBtn").onclick=()=>UI.mount("#table", UI.empty("No plays match these filters."));
+$("#errorBtn").onclick=()=>{ UI.mount("#table", UI.error("Couldn't load the slate.", {retryLabel:"Retry"}));
+  $("#table").querySelector("[data-ui-retry]").onclick=renderTable; };
+
+$("#tabs").innerHTML = UI.tabs([
+  {id:"why",label:"Why this play",panel:'<div class="ui-card__sub" style="padding:10px 0">Elite pitch-mix edge · wind out 12 · attackable SP.</div>'},
+  {id:"bvp",label:"BvP",panel:'<div class="ui-card__sub" style="padding:10px 0">11 PA, .778 SLG vs this pitcher.</div>'},
+  {id:"multi",label:"Multi-season",panel:'<div class="ui-card__sub" style="padding:10px 0">2025 barrel 10.6% → 2026 19.1% (improving).</div>'},
+], {group:"detail"});
+
+$("#exp").innerHTML = UI.expandable("View details",
+  '<div class="ui-card__sub" style="padding:8px 0">Full reasons, red flags, calibration status…</div>');
+
+$("#spin").innerHTML = UI.spinner("Refreshing odds") + ' &nbsp; <span class="ui-card__sub">inline spinner with sr-only status</span>';
+
+UI.enhance(document.body);  // one call wires all keyboard + click behavior
+</script>
+</body>
+</html>
