@@ -18,7 +18,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from ..cli import _make_client, _write_outputs, build_slate
+from ..pipeline import build_slate, make_client as _make_client, write_outputs as _write_outputs
 from ..config import load_config
 from ..grade import append_ledger, grade_picks, summarize
 from ..report.picks import load_picks

@@ -164,7 +164,7 @@ def _network_rebuild(date_dir: Path, out_root: Path) -> dict:
     """Rebuild a slate from current data to synthesize a snapshot. EXPLICIT
     opt-in only; uses current leaderboards -> NOT point-in-time accurate."""
     try:
-        from .cli import _make_client, _write_outputs, build_slate
+        from .pipeline import build_slate, make_client as _make_client, write_outputs as _write_outputs
         from .config import load_config
         cfg = load_config()
         client = _make_client(cfg, offline=False)
