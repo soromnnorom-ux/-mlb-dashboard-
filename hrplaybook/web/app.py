@@ -44,11 +44,30 @@ def _config(path: Optional[str] = None):
 # --------------------------------------------------------------------------- #
 # Data readers
 # --------------------------------------------------------------------------- #
+_DF_CACHE: Dict[str, tuple] = {}   # path -> (mtime, records)
+
+
 def _df_records(path: Path) -> list:
+    """Read a CSV to list[dict], memoized by file mtime.
+
+    The pipeline rewrites out/<date>/*.csv on run/refresh/grade, which bumps the
+    mtime and auto-invalidates this cache. Avoids re-parsing the same CSV with
+    pandas on every API request (each endpoint reads several CSVs, often twice).
+    """
     if not path.exists():
         return []
+    try:
+        mt = path.stat().st_mtime
+    except OSError:
+        mt = 0.0
+    key = str(path)
+    hit = _DF_CACHE.get(key)
+    if hit is not None and hit[0] == mt:
+        return hit[1]
     # to_json -> null for NaN and native types (json.dumps chokes on nan/numpy)
-    return json.loads(pd.read_csv(path).to_json(orient="records"))
+    recs = json.loads(pd.read_csv(path).to_json(orient="records"))
+    _DF_CACHE[key] = (mt, recs)
+    return recs
 
 
 def _meta(date: str) -> dict:
