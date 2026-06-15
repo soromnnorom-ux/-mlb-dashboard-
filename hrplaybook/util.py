@@ -64,6 +64,28 @@ def today_iso() -> str:
     return _dt.date.today().isoformat()
 
 
+def to_bool(v) -> bool:
+    """Parse a CSV/JSON cell into a bool. Handles True/'True'/'true'/1/'1'/'yes'."""
+    return v is True or str(v).strip().lower() in ("true", "1", "yes")
+
+
+def split_tags(v) -> list:
+    """Pipe-delimited tag string -> list (drops empties). Accepts a list too."""
+    if isinstance(v, (list, tuple)):
+        return [t for t in v if t]
+    return [t for t in str(v or "").split("|") if t]
+
+
+# 0-100 model-score -> letter grade (single source of truth for featured/value views)
+_GRADE_CUTS = ((85, "A+"), (72, "A"), (58, "B"), (42, "C"), (0, "D"))
+
+
+def grade_from_score(s) -> str:
+    if s is None:
+        return "—"
+    return next(g for cut, g in _GRADE_CUTS if s >= cut)
+
+
 def flip_name(name: str) -> str:
     """'Cronenworth, Jake' -> 'Jake Cronenworth'; passthrough if no comma."""
     if not name:

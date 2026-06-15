@@ -20,15 +20,12 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from . import featured, value_center
+from .util import to_bool as _as_bool
 
 MIN_SAMPLE = 10                      # below this -> low-sample warning
 SIGNAL_TAGS = ["PITCH_MIX_EDGE", "MISSED_HR", "HOT_CONTACT", "NUCLEAR_CONTACT",
                "MULTIPLE_100_EV", "PENDING_BLOWUP", "WEAK_BULLPEN", "LATE_HR",
                "REGRESSION_SPOT", "RECENT_HR", "COLD_CONTACT", "SMALL_PM_SAMPLE"]
-
-
-def _as_bool(v):
-    return v is True or str(v).lower() == "true"
 
 
 def _as_float(v):

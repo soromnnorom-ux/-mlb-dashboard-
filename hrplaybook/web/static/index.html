@@ -168,8 +168,9 @@
   .mscard .v{font-size:12px;color:#adbac7;line-height:1.7}
   .mscard .miss{color:var(--muted);font-style:italic}
 </style>
+<link rel="stylesheet" href="/static/components.css"/>
 </head>
-<body>
+<body class="ui">
 <header>
   <h1>HR Playbook <span class="dim">⚾ dashboard</span></h1>
   <select id="dateSel" title="slate date"></select>
@@ -209,6 +210,7 @@
 <main id="view"><div class="empty">Loading…</div></main>
 <div id="tip"></div>
 
+<script src="/static/components.js"></script>
 <script>
 const $ = s => document.querySelector(s);
 let STATE = {date:null, slate:null, tab:"home", sort:{key:"play_score",dir:-1}, filter:"",
@@ -221,29 +223,14 @@ const TAG_PRIORITY=["VALUE_ALERT","NUCLEAR_CONTACT","HOT_CONTACT","MISSED_HR",
   "STRONG_PITCH_MIX_EDGE","PITCH_MIX","GOOD_ENVIRONMENT","PITCHER_TO_ATTACK",
   "REGRESSION_SPOT","BVP_GOOD_HISTORY","BVP_BAD_HISTORY","LATE_HR","RAW_FALLBACK"];
 function _tagRank(t){const i=TAG_PRIORITY.findIndex(p=>t.includes(p));return i<0?99:i;}
+// adopt the shared component library for tags (accessible cap + "+N more")
+function _sortTags(tags){return String(tags||"").split("|").filter(Boolean).sort((a,b)=>_tagRank(a)-_tagRank(b));}
 function tagHtml(tags){
   if(!tags) return "";
-  let arr=String(tags).split("|").filter(Boolean);
-  const simple=(STATE.mode!=="advanced");
-  let extra=0;
-  if(simple && arr.length>3){
-    arr=[...arr].sort((a,b)=>_tagRank(a)-_tagRank(b));
-    extra=arr.length-3; arr=arr.slice(0,3);
-  }
-  const html=arr.map(t=>{
-    let c = t.includes("HOT")||t.includes("NUCLEAR")?"hot": t.includes("MISSED")?"miss":
-            t.includes("PLATOON")?"plat": t.includes("LATE")||t.includes("BVP")?"late":"";
-    return `<span class="tag ${c}">${t}</span>`;
-  }).join("");
-  return html+(extra>0?`<span class="tag" title="${String(tags).split('|').join(', ')}" style="cursor:help">+${extra} more</span>`:"");
+  return UI.tags(_sortTags(tags), {max: STATE.mode==="advanced" ? 99 : 3});
 }
 function tagHtmlFull(tags){
-  if(!tags) return "—";
-  return String(tags).split("|").filter(Boolean).map(t=>{
-    let c = t.includes("HOT")||t.includes("NUCLEAR")?"hot": t.includes("MISSED")?"miss":
-            t.includes("PLATOON")?"plat": t.includes("LATE")||t.includes("BVP")?"late":"";
-    return `<span class="tag ${c}">${t}</span>`;
-  }).join("")||"—";
+  return tags ? UI.tags(_sortTags(tags), {max: 99}) : "—";
 }
 function valueCls(v){return v==="+EV"?"v-pos":v==="-EV"?"v-neg":"v-fair";}
 
@@ -1292,6 +1279,7 @@ $("#view").addEventListener("click", e=>{
     b.textContent=b.textContent.replace(/[▾▴]/,open?"▾":"▴");
   }
 });
+if(window.UI) UI.enhance(document.body);   // wire component-library keyboard/click
 (async()=>{ initTips(); applyMode(); await loadGlossary(); await loadDates(); await loadSlate();
   attachHeaderTips(); setStatus("ok","ready"); })();
 </script>

@@ -16,6 +16,8 @@ from __future__ import annotations
 
 from typing import Dict, List, Optional
 
+from .util import grade_from_score, split_tags, to_bool  # shared helpers
+
 MARKETS = ["HR", "TB", "HRR", "Hits"]
 
 # component cap allocations per market (each set sums to ~100)
@@ -47,8 +49,7 @@ def _clip(x: float, lo: float = 0.0, hi: float = 1.0) -> float:
     return max(lo, min(hi, x))
 
 
-def _split(s) -> List[str]:
-    return [x for x in str(s or "").split("|") if x]
+_split = split_tags  # shared
 
 
 def tags_of(m: dict) -> List[str]:
@@ -102,11 +103,6 @@ def _fracs(m: dict) -> Dict[str, float]:
         "form": _clip(((l30 if l30 is not None else .22) - .22) / .13),
         "platoon": {"fav": 1.0, "neutral": 0.5, "unfav": 0.0}.get(plat, 0.5),
     }
-
-
-def grade_from_score(s: float) -> str:
-    return ("A+" if s >= 85 else "A" if s >= 72 else "B" if s >= 58
-            else "C" if s >= 42 else "D")
 
 
 def stars(s: float) -> int:
@@ -273,8 +269,8 @@ def _bvp_row(m: dict) -> dict:
         "barrels": _f(m, "bvp_barrels"), "hardhit": _f(m, "bvp_hardhit"),
         "grade": m.get("bvp_grade"), "sample_size": m.get("bvp_sample_size"),
         "confidence": m.get("bvp_confidence"), "edge_label": m.get("bvp_edge_label"),
-        "small_sample": str(m.get("bvp_small_sample")).lower() == "true",
-        "grade_capped": str(m.get("bvp_grade_capped")).lower() == "true",
+        "small_sample": to_bool(m.get("bvp_small_sample")),
+        "grade_capped": to_bool(m.get("bvp_grade_capped")),
         "reasons": _split(m.get("bvp_reasons")),
     }
 
@@ -615,7 +611,7 @@ def pitcher_attack_table(pitchers: List[dict], games: List[dict]) -> dict:
                      "trend_grade": p.get("pitcher_trend_grade"),
                      "trend_label": p.get("pitcher_trend_label"),
                      "pitch_mix_change": p.get("pitch_mix_change") or "",
-                     "more_attackable_2026": str(p.get("more_attackable_2026")).lower() == "true",
+                     "more_attackable_2026": to_bool(p.get("more_attackable_2026")),
                      **a})
     rows.sort(key=lambda r: -r["attack"])
     return {
