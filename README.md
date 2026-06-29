@@ -56,6 +56,15 @@ Outputs (under `out/<date>/`):
 - `picks.json` — machine-readable picks consumed by `grade`
 - `out/_ledger.csv` — rolling graded results across all dates (W/L, hit-rate, ROI)
 
+`matchups.csv` is the point-in-time slate snapshot used for backtesting. It always
+persists the inputs needed to re-score a slate later, including the power profile
+(`slg`, `iso`, `xslg`, `xiso`), contact (`avg_ev`, `hardhit_pct`, `la_avg`,
+`barrel_pct`), the pitch-mix barrel signal **with its sample size**
+(`barrel_vs_pm`, `barrel_vs_pm_bbe`), and `tags`. Note: `hardhit_pct` is hard-hit%
+and `la_avg` is average launch angle (kept under these names for consumer
+compatibility). `xslg`/`xiso` are the park- and luck-stable expected stats; prefer
+them over raw `slg`/`iso` for any future power rule.
+
 ## Grading / backtest loop
 
 `hrplaybook grade --date <past>` pulls actual HR / TB / hits / runs / RBI from the

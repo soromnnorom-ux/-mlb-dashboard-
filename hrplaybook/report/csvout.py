@@ -106,6 +106,7 @@ def _batter_rows(matchups: List[Matchup]) -> List[dict]:
             "pa": b.pa,
             "ba": b.ba,
             "slg": b.slg,
+            "xslg": b.xslg,
             "iso": b.iso,
             "xiso": b.xiso,
             "woba": b.woba,
@@ -149,7 +150,12 @@ def _matchup_rows(matchups: List[Matchup]) -> List[dict]:
             "barrel_vs_pm": b.barrel_vs_pm,
             "barrel_vs_pm_bbe": b.barrel_vs_pm_bbe,
             "barrel_vs_hand": b.barrel_vs_hand,
+            # power profile -- persisted for future model/backtest validation
+            # (xslg/xiso are the park- and luck-stable expected stats).
+            "slg": b.slg,
             "iso": b.iso,
+            "xslg": b.xslg,
+            "xiso": b.xiso,
             "la_avg": b.la_avg,
             "ev_logs": "|".join(str(int(x)) for x in b.recent_ev_logs),
             "l30_avg": b.l30_avg,
