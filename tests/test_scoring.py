@@ -77,7 +77,7 @@ def test_elite_gate():
 
 
 def test_practical_gate():
-    b = Batter(player_id=1, name="b", barrel_vs_pm=12)
+    b = Batter(player_id=1, name="b", barrel_vs_pm=12, barrel_vs_pm_bbe=20)
     passed, kind = gate_status(b, CFG)  # default practical
     assert passed and kind == "practical"
 
@@ -115,7 +115,8 @@ def test_dead_air_suppresses_hr_tier():
 
 
 def test_tier1_requires_gate_env_pitcher_edge():
-    b = Batter(player_id=1, name="slug", barrel_vs_pm=22, missed_hr=True)
+    b = Batter(player_id=1, name="slug", barrel_vs_pm=22, barrel_vs_pm_bbe=20,
+               missed_hr=True)
     b.tags.append("MISSED_HR")
     m = _matchup("good", 4, b)
     score_matchup(m, CFG)
@@ -127,7 +128,8 @@ def test_max_plays_cap():
     cfg.max_plays = 2
     ms = []
     for i in range(5):
-        b = Batter(player_id=i, name=f"b{i}", barrel_vs_pm=22, missed_hr=True)
+        b = Batter(player_id=i, name=f"b{i}", barrel_vs_pm=22,
+                   barrel_vs_pm_bbe=20, missed_hr=True)
         b.tags.append("MISSED_HR")
         m = _matchup("good", 4, b)
         score_matchup(m, cfg)
@@ -147,7 +149,8 @@ def test_tb_primary_in_good_env():
 
 
 def test_hr_card_only_tier1():
-    b = Batter(player_id=1, name="b", barrel_vs_pm=22, missed_hr=True)
+    b = Batter(player_id=1, name="b", barrel_vs_pm=22, barrel_vs_pm_bbe=20,
+               missed_hr=True)
     b.tags.append("MISSED_HR")
     m = _matchup("good", 4, b)
     score_matchup(m, CFG)
