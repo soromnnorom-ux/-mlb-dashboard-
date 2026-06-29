@@ -1,0 +1,20 @@
+# keep the image lean and the build context small
+.git
+.venv
+venv
+__pycache__
+*.pyc
+.pytest_cache
+.mypy_cache
+
+# per-date data lives on the persistent VOLUME, not in the image.
+# (To seed history into the image instead, comment the next line out — see DEPLOY.md.)
+out/
+
+# local artifacts / generated files
+*.env
+.env
+hrplaybook-dashboard-*.html
+hrplaybook-live.html
+node_modules
+.DS_Store
