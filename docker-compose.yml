@@ -1,0 +1,21 @@
+# VPS / local production via Docker Compose.
+#   docker compose up -d --build
+# Put your Odds API keys in a .env file next to this (NOT committed):
+#   ODDS_API_KEY_1=xxxxx
+services:
+  hrplaybook:
+    build: .
+    image: hrplaybook:latest
+    restart: unless-stopped
+    ports:
+      - "8000:8000"          # http://<server-ip>:8000  (front a reverse proxy + TLS for prod)
+    environment:
+      - PORT=8000
+      - ODDS_API_KEY_1=${ODDS_API_KEY_1:-}
+      - ODDS_API_KEY_2=${ODDS_API_KEY_2:-}
+      - ODDS_API_KEY_3=${ODDS_API_KEY_3:-}
+    volumes:
+      - hrplaybook_out:/app/out     # persistent per-date data + ledger + calibration
+
+volumes:
+  hrplaybook_out:

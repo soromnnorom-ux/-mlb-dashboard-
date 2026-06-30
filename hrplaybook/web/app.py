@@ -6,7 +6,10 @@ Long pipeline jobs run in a background thread; the UI polls for completion.
 """
 from __future__ import annotations
 
+import base64
+import hmac
 import json
+import os
 import threading
 import traceback
 import uuid
@@ -14,7 +17,7 @@ from pathlib import Path
 from typing import Dict, Optional
 
 import pandas as pd
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -27,6 +30,34 @@ from ..util import resolve_date, today_iso
 
 STATIC = Path(__file__).resolve().parent / "static"
 app = FastAPI(title="hrplaybook", docs_url="/api/docs")
+
+
+@app.middleware("http")
+async def _basic_auth(request: Request, call_next):
+    """Optional HTTP Basic Auth for public deploys.
+
+    No-op unless BOTH HRPB_AUTH_USER and HRPB_AUTH_PASS are set in the
+    environment, so local dev and tests are unaffected. Env is read per request
+    so it can be toggled without re-import.
+    """
+    user = os.environ.get("HRPB_AUTH_USER")
+    pw = os.environ.get("HRPB_AUTH_PASS")
+    if user and pw:
+        ok = False
+        hdr = request.headers.get("authorization", "")
+        if hdr.startswith("Basic "):
+            try:
+                got_u, _, got_p = base64.b64decode(hdr[6:]).decode("utf-8").partition(":")
+                ok = (hmac.compare_digest(got_u, user)
+                      and hmac.compare_digest(got_p, pw))
+            except Exception:
+                ok = False
+        if not ok:
+            return Response(
+                "Authentication required", status_code=401,
+                headers={"WWW-Authenticate": 'Basic realm="HR Playbook"'},
+            )
+    return await call_next(request)
 
 # --- background job tracking ------------------------------------------------
 JOBS: Dict[str, dict] = {}
