@@ -15,3 +15,8 @@ out/
 # odds api keys
 .env
 *.env
+
+# Generated dashboard/export files
+site_review_export.txt
+hrplaybook-dashboard-*.html
+hrplaybook-live.html
