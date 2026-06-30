@@ -156,6 +156,41 @@ def _set(job_id: str, **kw):
     JOBS.setdefault(job_id, {}).update(kw)
 
 
+def _run_odds(client, cfg, date: str, matchups, opts: dict) -> dict:
+    """Pull live odds as part of a full Run, using the SAME path as the
+    Refresh-API-Odds button (odds_api.pull -> odds_keys). Non-fatal: always
+    returns a SAFE status dict (env-var NAME only, never the raw key)."""
+    if opts.get("no_odds"):
+        return {"status": "skipped", "message": "odds disabled for this run"}
+    from .. import odds_api, odds_keys
+    from ..util import normalize_name
+    if not cfg.odds.provider:
+        return {"status": "no-provider",
+                "message": "no odds provider configured; value stays model-only"}
+    odds_keys.load_dotenv()
+    if not odds_keys.has_any_key():
+        return {"status": "no-key",
+                "message": "no ODDS_API_KEY_1 set; value stays model-only"}
+    name_index = {normalize_name(m.batter.name): m.batter.player_id
+                  for m in matchups if m.batter and m.batter.name}
+    try:
+        res = odds_api.pull(client, cfg, date, name_index)
+    except Exception as e:  # noqa: BLE001
+        return {"status": "failed", "message": f"odds pull error: {type(e).__name__}"}
+    if res.get("ok"):
+        n = res.get("records_saved", 0)
+        return {"status": "ok", "active_key_name": res.get("active_key_name"),
+                "records_saved": n, "books": res.get("books", []),
+                "message": f"{n} odds rows saved" + (f" ({', '.join(res.get('books', [])[:4])})"
+                                                     if res.get("books") else "")}
+    err = res.get("error") or "unknown"
+    msg = {
+        "quota_exhausted": "odds API quota exhausted (HTTP 429) — try later",
+        "no_valid_key": "no valid odds key — check ODDS_API_KEY_1 (HTTP 401/403)",
+    }.get(err, f"odds failed: {err}")
+    return {"status": "failed", "message": msg}
+
+
 def _run_job(job_id: str, kind: str, date: str, opts: dict):
     if not _RUN_LOCK.acquire(blocking=False):
         _set(job_id, state="error", error="another job is already running")
@@ -181,9 +216,14 @@ def _run_job(job_id: str, kind: str, date: str, opts: dict):
             client.close()
         _write_outputs(date, games, pitchers, matchups, cfg, warnings)
         tier1 = sum(1 for m in matchups if m.tier == 1)
+        # full-slate Run: pull live odds too (non-fatal). Same odds path as the
+        # Refresh button; failure never fails the run, just reports a status.
+        odds = _run_odds(client, cfg, date, matchups, opts)
         _set(job_id, state="done", result={
             "games": len(games), "matchups": len(matchups),
             "tier1": tier1, "warnings": warnings,
+            "odds": odds,
+            "out_path": str(_out_dir().resolve()),
         })
     except Exception as e:  # noqa: BLE001
         _set(job_id, state="error", error=str(e), trace=traceback.format_exc())

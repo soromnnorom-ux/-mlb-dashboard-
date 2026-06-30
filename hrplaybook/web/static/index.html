@@ -225,6 +225,14 @@
     background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:5px 9px;cursor:pointer}
   .csbar label input{margin:0}
   .csbar .fsep{width:1px;height:18px;background:var(--line)}
+  /* run-status panel */
+  #runResult{margin:10px 16px 0;background:var(--panel);border:1px solid var(--line);
+    border-left:3px solid var(--accent);border-radius:10px;padding:10px 14px;font-size:13px}
+  #runResult .rs-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+  #runResult .rs-x{cursor:pointer;color:var(--muted);font-size:12px;padding:0 4px}
+  #runResult .rs-line{padding:2px 0;font-size:12.5px}
+  .rs-ok{color:var(--green)} .rs-warn{color:var(--accent)} .rs-err{color:var(--red)}
+  .rs-muted{color:var(--muted)}
 </style>
 <link rel="stylesheet" href="/static/components.css"/>
 </head>
@@ -265,6 +273,7 @@
   <button data-tab="glossary" class="adv-only">Glossary</button>
 </nav>
 <div id="slateBar"></div>
+<div id="runResult" style="display:none"></div>
 <main id="view"><div class="empty">Loading…</div></main>
 <div id="tip"></div>
 
@@ -1421,10 +1430,31 @@ async function validate(){
 // --- jobs ---
 let POLL=null;
 function setStatus(cls,txt){ $("#status").innerHTML=`<span class="dot ${cls}"></span>${txt}`; }
-function busy(b){ ["btnRun","btnRefresh","btnGrade"].forEach(id=>$("#"+id).disabled=b); }
+function busy(b){ ["btnRun","btnRefresh","btnGrade","btnForce"].forEach(id=>{const el=$("#"+id); if(el) el.disabled=b;}); }
+function esc(s){ return String(s==null?"":s).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
+function renderRunStatus(res){
+  const el=$("#runResult"); if(!el) return;
+  if(!res){ el.style.display="none"; el.innerHTML=""; return; }
+  const w=res.warnings||[];
+  const odds=res.odds||{status:"skipped",message:""};
+  const oIcon={ok:"✓","no-key":"•","no-provider":"•",skipped:"•",failed:"✗"}[odds.status]||"•";
+  const oCls={ok:"rs-ok","no-key":"rs-warn","no-provider":"rs-warn",skipped:"rs-muted",failed:"rs-err"}[odds.status]||"rs-muted";
+  let overall,oc;
+  if(odds.status==="failed"){ overall="completed — odds failed"; oc="rs-warn"; }
+  else if(w.length){ overall="completed with warnings"; oc="rs-warn"; }
+  else { overall="completed"; oc="rs-ok"; }
+  el.style.display="block";
+  el.innerHTML=`<div class="rs-head"><b class="${oc}">Run ${overall}</b>
+      <span class="rs-x" onclick="renderRunStatus(null)">✕ dismiss</span></div>
+    <div class="rs-line rs-ok">✓ Slate built — ${res.games||0} games · ${res.matchups||0} matchups · ${res.tier1||0} Tier-1</div>
+    ${w.length?`<div class="rs-line rs-warn">⚠ ${w.length} warning${w.length>1?"s":""}: ${w.slice(0,4).map(esc).join(" · ")}${w.length>4?" …":""}</div>`
+              :`<div class="rs-line rs-muted">• No warnings</div>`}
+    <div class="rs-line ${oCls}">${oIcon} Odds: ${esc(odds.message||odds.status)}</div>
+    <div class="rs-line rs-muted">• Output: <span class="mono">${esc(res.out_path||"out")}</span></div>`;
+}
 async function trigger(kind){
   const date = STATE.date;          // single source of truth for every action
-  busy(true); setStatus("run", kind+" "+date+" …");
+  busy(true); setStatus("run", kind+" "+date+" …"); renderRunStatus(null);
   let job;
   try{ job = await api("/api/"+kind,{method:"POST",headers:{"Content-Type":"application/json"},
         body:JSON.stringify({date, no_statcast:$("#noStat").checked})}); }
@@ -1437,8 +1467,11 @@ async function trigger(kind){
     if(j.state==="error"){ setStatus("err", (j.error||"error").slice(0,60)); return; }
     const r=j.result||{};
     if(kind==="grade"){ STATE.lastGraded=j.date; setStatus("ok","Last graded: "+j.date); }
-    else setStatus("ok", `done · ${r.games||0}g ${r.tier1||0} T1`);
+    else { setStatus("ok", `done · ${r.games||0}g ${r.tier1||0} T1`); renderRunStatus(r); }
     STATE.date=j.date; await loadDates();
+    // force a fresh slate fetch so the current tab repopulates; other tabs
+    // lazy-fetch on visit (reader cache is mtime-invalidated -> always fresh).
+    STATE.slate=null;
     if(kind==="grade"){ STATE.tab="ledger"; setTab(); updateSlateBar(); } else { await loadSlate(); }
   }, 1500);
 }
