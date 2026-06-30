@@ -27,11 +27,28 @@ Because builds run in background threads and write to `./out`, the host must be:
 1. Push this repo to GitHub.
 2. Railway → **New Project → Deploy from GitHub repo** → pick this repo.
    It auto-detects the `Dockerfile` (via `railway.json`).
-3. **Variables** → add `ODDS_API_KEY_1` = your key (and `_2`/`_3` if you have them).
+3. **Variables** → add:
+   - `ODDS_API_KEY_1` = your key (and `_2`/`_3` if you have them).
+   - `HRPB_AUTH_USER` and `HRPB_AUTH_PASS` = **a username + password to lock the
+     site** (strongly recommended for a public URL — see "Password protection").
 4. **Volumes** → New Volume → mount path **`/app/out`**. (Critical — without this
    your builds vanish on every redeploy.)
-5. **Settings → Networking → Generate Domain.** Open it → the dashboard loads.
+5. **Settings → Networking → Generate Domain.** Open it → the browser prompts for
+   the user/pass you set, then the dashboard loads.
 6. Click **Run** in the header to build today's slate on the server.
+
+### Password protection (HTTP Basic Auth)
+The dashboard is otherwise **unauthenticated** and its Run/Refresh/Grade buttons
+trigger jobs and use your odds-API quota. Set **both** of these env vars and the
+app requires a username+password on every request:
+
+```
+HRPB_AUTH_USER=scout
+HRPB_AUTH_PASS=<a long random password>
+```
+
+If either is unset the middleware is a no-op (local dev stays open). Auth is a
+single Basic-Auth gate — fine over Railway's HTTPS; don't run it over plain HTTP.
 
 Railway keeps the service always-on (usage-based, ~$5/mo for an idle small app).
 
