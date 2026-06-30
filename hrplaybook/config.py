@@ -151,7 +151,15 @@ class Config(BaseModel):
     def odds_api_key(self) -> str | None:
         if not self.odds.provider:
             return None
-        return os.environ.get(self.odds.api_key_env)
+        # Resolve the numbered keys (ODDS_API_KEY_1/_2/_3) first, then the legacy
+        # single name -- the same priority the dashboard / Odds-Refresh path uses
+        # (odds_keys.KEY_ENV_VARS). Previously this read only api_key_env
+        # ("ODDS_API_KEY"), so a deploy that set only ODDS_API_KEY_1 got no key.
+        for name in [*self.odds.api_key_envs, self.odds.api_key_env]:
+            v = os.environ.get(name)
+            if v and v.strip():
+                return v.strip()
+        return None
 
 
 def load_config(path: str | Path | None = None) -> Config:
