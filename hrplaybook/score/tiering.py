@@ -51,6 +51,11 @@ def _assign_tier(m: Matchup, cfg: Config) -> int | None:
 
     # Tier 1 (CORE)
     if m.gate_passed and env_rank >= 2 and m.pitcher_score >= 3 and has_edge:
+        # Recency guard: a bat that just homered isn't a *fresh* CORE play
+        # unless it also carries a regression signal (missed-HR). Fade it one
+        # tier instead of riding yesterday's HR into Tier 1.
+        if m.batter.recent_hr and not m.batter.missed_hr:
+            return 2
         return 1
 
     # Tier 2 (ENV-BOOSTED): elite environment, metrics not perfect
@@ -73,4 +78,5 @@ def finalize_tiers(matchups: List[Matchup], cfg: Config) -> List[Matchup]:
     )
     for extra in tier1[cfg.max_plays:]:
         extra.tier = 2  # demote overflow CORE plays to ENV-BOOSTED
+        extra.bets.pop("HR", None)  # capped-out play is no longer an HR leg
     return matchups

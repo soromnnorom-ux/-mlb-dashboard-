@@ -9,6 +9,10 @@
     --bg:#0e1116; --panel:#161b22; --panel2:#1c232d; --line:#2a323d;
     --text:#e6edf3; --muted:#8b949e; --accent:#f0a000; --green:#2ea043;
     --red:#da3633; --blue:#388bfd; --t1:#2ea043; --t2:#d29922; --t3:#6e7681;
+    /* extra tokens used by the Final Card command center */
+    --accent2:#c87f00; --purple:#a371f7;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --glow-gold:0 0 0 1px rgba(240,160,0,.25),0 0 18px rgba(240,160,0,.22);
   }
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--text);
@@ -167,6 +171,60 @@
   .mscard .t{font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:5px}
   .mscard .v{font-size:12px;color:#adbac7;line-height:1.7}
   .mscard .miss{color:var(--muted);font-style:italic}
+
+  /* =================================================================
+     FINAL CARD — betting command center (Today's Best)
+     ================================================================= */
+  .fc-sec{margin:4px 0 8px}
+  .fc-title{display:flex;align-items:center;gap:10px;margin:24px 0 6px;font-size:15px;font-weight:800;
+    letter-spacing:.4px}
+  .fc-h{display:flex;align-items:center;gap:10px;margin:16px 0 9px;font-size:12px;font-weight:700;
+    letter-spacing:.5px;text-transform:uppercase;color:var(--text)}
+  .fc-h .cnt{color:var(--muted);font-weight:600}
+  .fc-h .ln{flex:1;height:1px;background:var(--line)}
+  .fc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:12px}
+  .fcard{position:relative;overflow:hidden;background:var(--panel);
+    border:1px solid var(--line);border-radius:14px;padding:13px 14px 12px;
+    transition:transform .12s,box-shadow .12s}
+  .fcard:hover{transform:translateY(-2px);box-shadow:0 12px 28px rgba(0,0,0,.45)}
+  .fcard::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent)}
+  .fcard.mk-HR::before{background:linear-gradient(180deg,var(--accent),var(--accent2));box-shadow:var(--glow-gold)}
+  .fcard.mk-TB::before{background:var(--blue)}
+  .fcard.mk-HRR::before{background:var(--purple)}
+  .fcard.mk-Hits::before{background:var(--green)}
+  .fcard.fade::before{background:var(--red)}
+  .fc-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+  .fc-id{display:flex;gap:9px;align-items:center;min-width:0}
+  .fc-id img{width:40px;height:40px;border-radius:50%;border:1px solid var(--line);
+    background:var(--panel2);flex:none;object-fit:cover}
+  .fc-nm{font-weight:700;font-size:14px;line-height:1.15}
+  .fc-sub{font-size:11px;color:var(--muted)}
+  .fc-score{text-align:right;flex:none;display:flex;flex-direction:column;align-items:flex-end;gap:3px}
+  .fc-score .sc{font-family:var(--mono);font-size:24px;font-weight:700;line-height:1}
+  .fc-meta{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:9px 0 8px}
+  .fc-meta .stars{color:var(--accent);font-size:12px;letter-spacing:1px}
+  .tierpill{font-size:10px;font-weight:700;padding:1px 7px;border-radius:5px;border:1px solid var(--line);color:var(--muted)}
+  .tierpill.t1{color:#1a1205;background:var(--accent);border-color:transparent}
+  .tierpill.t2{color:var(--accent);border-color:var(--accent)}
+  .fc-stats{display:grid;grid-template-columns:repeat(2,1fr);gap:3px 14px;font-size:11.5px;margin-bottom:7px}
+  .fc-st{display:flex;justify-content:space-between;gap:6px;border-bottom:1px dotted var(--line);padding:2px 0}
+  .fc-st span{color:var(--muted)} .fc-st b{font-family:var(--mono)}
+  .fc-pwr{grid-column:1/-1;color:#adbac7;font-family:var(--mono);font-size:11px;border:none;padding-top:3px}
+  .fc-why{margin:2px 0 0;padding:0} .fc-why li{font-size:11.5px;margin:2px 0;color:#9fd3b0;list-style:none}
+  .fc-why li::before{content:"✓ ";color:var(--green)}
+  .fc-fl{margin:3px 0 0;padding:0} .fc-fl li{font-size:11px;margin:2px 0;color:#e8a9a0;list-style:none}
+  .fc-fl li::before{content:"⚠ ";color:var(--accent)}
+  .warnchip{display:inline-block;font-size:9.5px;font-weight:700;letter-spacing:.3px;padding:1px 6px;
+    border-radius:4px;background:#3a1d1d;color:#f6a6a0;border:1px solid #5a2a2a;margin:0 3px 3px 0}
+  .warnchip.amber{background:#3a2d10;color:#e3b341;border-color:#5a4400}
+  .dnf-note{color:var(--muted);font-size:12px;margin:-2px 0 10px}
+  /* cheat-sheet filter bar */
+  .csbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+  .csbar select{font-size:12px;padding:5px 9px}
+  .csbar label{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--muted);
+    background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:5px 9px;cursor:pointer}
+  .csbar label input{margin:0}
+  .csbar .fsep{width:1px;height:18px;background:var(--line)}
 </style>
 <link rel="stylesheet" href="/static/components.css"/>
 </head>
@@ -384,6 +442,16 @@ function renderSheet(){
       rows.push({m,bet,line,proj:projOf(m,bet)});
     }
   }
+  // --- filters (UI-only; no model/backend change) ---
+  rows=rows.filter(r=>{
+    const m=r.m;
+    if(STATE.sheetTeam&&STATE.sheetTeam!=="All"&&m.team!==STATE.sheetTeam) return false;
+    if(STATE.sheetTier&&STATE.sheetTier!=="All"&&String(m.tier)!==String(STATE.sheetTier)) return false;
+    if(STATE.sheetConfirmed&&m.lineup_state!=="confirmed") return false;
+    if(STATE.sheetEV&&m.value!=="+EV") return false;
+    if(STATE.sheetHideFades&&isFade(m)) return false;
+    return true;
+  });
   const {key,dir}=STATE.sheetSort||(STATE.sheetSort={key:"proj",dir:-1});
   const val=(r)=>({proj:r.proj, pm:r.m.barrel_vs_pm, hand:r.m.barrel_vs_hand,
                    l30:r.m.l30_avg, play:r.m.play_score}[key]);
@@ -416,13 +484,30 @@ function renderSheet(){
       <td>${envBadge(m.env_tier)}</td>
       <td class="mono" style="text-align:center">${m.tier??""}</td>
     </tr>`;}).join("");
-  $("#view").innerHTML=`<div class="chips">${chips}</div>
+  const teams=[...new Set(STATE.slate.matchups.map(m=>m.team).filter(Boolean))].sort();
+  const teamSel=t=> (STATE.sheetTeam||"All")===t?" selected":"";
+  const tierSel=t=> (STATE.sheetTier||"All")===String(t)?" selected":"";
+  const bar=`<div class="csbar">
+    <select id="csTeam" title="team"><option${teamSel("All")}>All</option>${teams.map(t=>`<option${teamSel(t)}>${t}</option>`).join("")}</select>
+    <select id="csTier" title="HR tier"><option${tierSel("All")}>All</option>${[1,2,3].map(t=>`<option${tierSel(t)}>Tier ${t}</option>`).join("")}</select>
+    <span class="fsep"></span>
+    <label><input type="checkbox" id="csConf"${STATE.sheetConfirmed?" checked":""}/> confirmed only</label>
+    <label><input type="checkbox" id="csEV"${STATE.sheetEV?" checked":""}/> +EV only</label>
+    <label><input type="checkbox" id="csFade"${STATE.sheetHideFades?" checked":""}/> hide fades</label>
+  </div>`;
+  $("#view").innerHTML=`<div class="chips">${chips}</div>${bar}
     <div class="sp" style="color:var(--muted);margin-bottom:8px">${rows.length} props${mk!=="All"?" · "+mk:""}</div>
-    <div class="panel"><table class="cs"><thead>${head}</thead><tbody>${body||'<tr><td colspan="12" class="empty">no props</td></tr>'}</tbody></table></div>`;
+    <div class="panel"><table class="cs"><thead>${head}</thead><tbody>${body||'<tr><td colspan="12" class="empty">no props match the filters</td></tr>'}</tbody></table></div>`;
   document.querySelectorAll(".chip").forEach(c=>c.onclick=()=>{STATE.sheetMarket=c.dataset.mk; renderSheet();});
   document.querySelectorAll("th[data-sk]").forEach(th=>th.onclick=()=>{
     const k=th.dataset.sk; STATE.sheetSort=STATE.sheetSort.key===k?{key:k,dir:-STATE.sheetSort.dir}:{key:k,dir:-1};
     renderSheet();});
+  const tier=v=>v==="All"?"All":v.replace("Tier ","");
+  $("#csTeam").onchange=e=>{STATE.sheetTeam=e.target.value; renderSheet();};
+  $("#csTier").onchange=e=>{STATE.sheetTier=tier(e.target.value); renderSheet();};
+  $("#csConf").onchange=e=>{STATE.sheetConfirmed=e.target.checked; renderSheet();};
+  $("#csEV").onchange=e=>{STATE.sheetEV=e.target.checked; renderSheet();};
+  $("#csFade").onchange=e=>{STATE.sheetHideFades=e.target.checked; renderSheet();};
 }
 
 function renderCards(){
@@ -580,6 +665,12 @@ async function renderHome(){
   $("#view").innerHTML=`<div class="empty">Loading…</div>`;
   let h; try{ h=await api("/api/home/"+STATE.date); }catch(e){ h={exists:false}; }
   if(!h.exists){ $("#view").innerHTML=`<div class="empty">No data for <b>${STATE.date}</b>.<br/>Click <b>Run</b> to build this slate.</div>`; return; }
+  // matchup rows (env / barrel / EV / ISO / tier) to enrich the Final Card,
+  // joined client-side by batter_id -- no backend change.
+  let MUS=(STATE.slate&&STATE.slate.matchups)||[];
+  if(!MUS.length || (STATE.slate&&STATE.slate.date!==STATE.date)){
+    try{ const sd=await api("/api/slate/"+STATE.date); MUS=sd.matchups||MUS; }catch(e){}
+  }
   const r=h.read, s=r.summary;
   const summaryStats=`<div class="banner">
     <div class="stat"><div class="n">${r.grade}</div><div class="l">slate grade</div></div>
@@ -628,6 +719,7 @@ async function renderHome(){
     ${vWidget("Top Value Bet", (h.value||{}).best_overall, (h.value||{}).has_odds)}
     ${snapWidget(h.perf_snapshot)}</div>`;
   $("#view").innerHTML=read+gradeRow+summaryStats
+    +finalCardSection(h, MUS)
     +`<h3>Quick widgets</h3>`+widgets
     +`<h3>Today's Best 5</h3><div class="best-grid">${cards}</div>`+tops;
 }
@@ -679,6 +771,112 @@ function cWidget(label,c){
     <div class="big"><span class="gpill ${txtGrade(c.label)}">${c.label}</span></div>
     <div class="nm" style="margin-top:6px">${c.batter}</div>
     <div class="sub">${c.team} · 95+ ${c.ev95??'–'} · 100+ ${c.ev100??'–'} · 105+ ${c.ev105??'–'}</div></div>`;
+}
+
+// ---- FINAL CARD (command center) helpers --------------------------------
+function fnum(v){ if(v==null||v==="")return null; const n=+v; return isNaN(n)?null:n; }
+function pwr3(label,v){ v=fnum(v); return v==null?"":`${label} ${v.toFixed(3).replace(/^0/,'')}`; }
+// warning tags derived in the UI (no backend/model change)
+const FADE_SERIOUS=new Set(["DEAD_AIR","SMALL_SAMPLE","RECENT_HR","LOW_POWER"]);
+function warningsFor(m){
+  const t=m.tags||"", W=[]; const bbe=fnum(m.barrel_vs_pm_bbe), iso=fnum(m.iso);
+  if(m.env_tier==="dead-air") W.push("DEAD_AIR");
+  else if(m.env_tier==="neutral") W.push("BAD_ENVIRONMENT");
+  if(t.includes("SMALL_PM_SAMPLE")||(bbe!=null&&bbe<15)) W.push("SMALL_SAMPLE");
+  if(t.includes("RECENT_HR")) W.push("RECENT_HR");
+  if(iso!=null&&iso<0.130) W.push("LOW_POWER");
+  if(m.lineup_state==="projected") W.push("PROJECTED_LINEUP");
+  return W;
+}
+function isFade(m){ return warningsFor(m).some(w=>FADE_SERIOUS.has(w)); }
+
+function finalCard(mk,it,mu){
+  mu=mu||{};
+  const n=it.stars||0, stars="★".repeat(n)+"☆".repeat(Math.max(0,5-n));
+  const tier=mu.tier, tierCls=tier==1?"t1":tier==2?"t2":"";
+  const valPill=(it.value&&it.value!=="unknown")?`<span class="gpill ${valCls(it.value)}">${it.value}</span>`:"";
+  const model=it.model_prob!=null?fmtPct(it.model_prob):null;
+  const bvpm=fnum(mu.barrel_vs_pm), bbe=fnum(mu.barrel_vs_pm_bbe);
+  const pwr=[pwr3("ISO",mu.iso),pwr3("SLG",mu.slg),pwr3("xSLG",mu.xslg),pwr3("xISO",mu.xiso)].filter(Boolean).join(" · ");
+  const st=(l,v)=> (v==null||v==="")?"":`<div class="fc-st"><span>${l}</span><b>${v}</b></div>`;
+  return `<div class="fcard mk-${mk}">
+    <div class="fc-top">
+      <div class="fc-id"><img loading="lazy" src="${headshot(it.batter_id)}" onerror="this.style.visibility='hidden'"/>
+        <div><div class="fc-nm">${it.batter}</div>
+          <div class="fc-sub">${it.team} · @${it.opp_team} · ${it.opp_sp||"TBD"}${mu.opp_sp_throws?` (${mu.opp_sp_throws})`:""}</div></div></div>
+      <div class="fc-score"><div class="sc ${gradeCls(it.grade)}">${it.score}</div>
+        <span class="gpill ${gradeCls(it.grade)}">${it.grade}</span></div>
+    </div>
+    <div class="fc-meta">
+      <span class="prop ${mk}">${it.line||mk}</span>
+      ${(tier!=null&&tier!=="")?`<span class="tierpill ${tierCls}">T${tier}</span>`:""}
+      ${envBadge(mu.env_tier)}
+      ${valPill}
+      <span class="stars">${stars}</span>
+    </div>
+    <div class="fc-stats">
+      ${st("B% vs PM", bvpm!=null?`${bvpm.toFixed(1)}${bbe!=null?` <span style="color:var(--muted)">(${bbe}bbe)</span>`:""}`:null)}
+      ${st("Avg EV", fnum(mu.avg_ev)!=null?fnum(mu.avg_ev).toFixed(1):null)}
+      ${st("HardHit%", fnum(mu.hardhit_pct)!=null?fnum(mu.hardhit_pct).toFixed(1):null)}
+      ${st("SP weakness", (mu.pitcher_score!=null&&mu.pitcher_score!=="")?mu.pitcher_score:null)}
+      ${st("Model", model)}
+      ${pwr?`<div class="fc-pwr">${pwr}</div>`:""}
+    </div>
+    ${(it.reasons||[]).length?`<ul class="fc-why">${it.reasons.slice(0,3).map(x=>`<li>${x}</li>`).join("")}</ul>`:""}
+    ${(it.red_flags||[]).length?`<ul class="fc-fl">${it.red_flags.slice(0,3).map(x=>`<li>${x}</li>`).join("")}</ul>`:""}
+  </div>`;
+}
+
+function fadeCard(m){
+  const W=warningsFor(m);
+  const chips=W.map(w=>`<span class="warnchip ${(w==="BAD_ENVIRONMENT"||w==="PROJECTED_LINEUP")?"amber":""}">${w.replace(/_/g," ")}</span>`).join("");
+  const offered=(m.bets||"").split("|").filter(Boolean).map(b=>b.split(":")[0]).join(", ")||"—";
+  const st=(l,v)=>`<div class="fc-st"><span>${l}</span><b>${v}</b></div>`;
+  let why="";
+  if(W.includes("SMALL_SAMPLE")) why+=st("Sample", (fnum(m.barrel_vs_pm_bbe)??"?")+" batted balls");
+  if(W.includes("LOW_POWER")) why+=st("ISO", fnum(m.iso)!=null?fnum(m.iso).toFixed(3).replace(/^0/,''):"low");
+  if(W.includes("DEAD_AIR")||W.includes("BAD_ENVIRONMENT")) why+=st("Environment", m.env_tier);
+  if(W.includes("RECENT_HR")) why+=st("Recent", "homered last 1–2 G");
+  if(W.includes("PROJECTED_LINEUP")) why+=st("Lineup", "projected (unconfirmed)");
+  return `<div class="fcard fade">
+    <div class="fc-top">
+      <div class="fc-id"><img loading="lazy" src="${headshot(m.batter_id)}" onerror="this.style.visibility='hidden'"/>
+        <div><div class="fc-nm">${m.batter}</div>
+          <div class="fc-sub">${m.team} · @${m.opp_team} · ${m.opp_sp||"TBD"}</div></div></div>
+      <div class="fc-score">${envBadge(m.env_tier)}</div>
+    </div>
+    <div class="fc-meta">${chips}</div>
+    <div class="fc-stats">
+      <div class="fc-st" style="grid-column:1/-1"><span>Model offers</span><b>${offered}</b></div>
+      ${why}
+    </div>
+  </div>`;
+}
+
+function doNotForce(mus){
+  const out=mus.filter(m=>(m.bets||"").trim() && isFade(m));
+  out.sort((a,b)=>(fnum(b.play_score)||0)-(fnum(a.play_score)||0));
+  return out.slice(0,12);
+}
+
+function finalCardSection(h, mus){
+  const idx={}; for(const m of mus) idx[String(m.batter_id)]=m;
+  const labels={HR:"Best HR Plays",TB:"Best 2+ TB Plays",HRR:"Best HRR Plays",Hits:"Best Hits Plays"};
+  let out=`<div class="fc-title">🎯 Final Card <span class="sp" style="font-weight:500;color:var(--muted);font-size:12px">— today's best by market</span></div>`;
+  for(const mk of ["HR","TB","HRR","Hits"]){
+    const items=(h.top&&h.top[mk])||[];
+    out+=`<div class="fc-h"><span>${labels[mk]}</span><span class="cnt">${items.length}</span><span class="ln"></span></div>`;
+    out+= items.length
+      ? `<div class="fc-grid">`+items.map(it=>finalCard(mk,it,idx[String(it.batter_id)])).join("")+`</div>`
+      : `<div class="sp" style="color:var(--muted)">no ${mk} plays on this slate</div>`;
+  }
+  const fades=doNotForce(mus);
+  out+=`<div class="fc-h" style="color:var(--red)"><span>🚫 Do Not Force</span><span class="cnt">${fades.length}</span><span class="ln"></span></div>`;
+  out+=`<div class="dnf-note">Plays the model offers but that carry red flags — skip them or size down.</div>`;
+  out+= fades.length
+    ? `<div class="fc-grid">`+fades.map(fadeCard).join("")+`</div>`
+    : `<div class="sp" style="color:var(--muted)">no flagged plays — the offered slate is clean</div>`;
+  return `<div class="fc-sec">`+out+`</div>`;
 }
 
 async function renderWeather(){

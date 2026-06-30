@@ -17,8 +17,13 @@ def passes_elite(b: Batter, cfg: Config) -> bool:
 
 
 def passes_practical(b: Batter, cfg: Config) -> bool:
-    floor = cfg.thresholds.practical.barrel_vs_pm
-    return b.barrel_vs_pm is not None and b.barrel_vs_pm >= floor
+    g = cfg.thresholds.practical
+    return (
+        b.barrel_vs_pm is not None and b.barrel_vs_pm >= g.barrel_vs_pm
+        # require a trustworthy sample: a barrel_vs_pm spike on a handful of
+        # batted balls (or a season-stat fallback) does not pass the gate.
+        and b.barrel_vs_pm_bbe >= g.min_bbe
+    )
 
 
 def gate_status(b: Batter, cfg: Config) -> Tuple[bool, str]:

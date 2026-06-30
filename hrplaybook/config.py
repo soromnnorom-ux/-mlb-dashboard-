@@ -21,6 +21,7 @@ class EliteGate(BaseModel):
 
 class PracticalGate(BaseModel):
     barrel_vs_pm: float = 10
+    min_bbe: int = 15        # batted balls required for a trustworthy barrel_vs_pm gate
 
 
 class PerfectProfile(BaseModel):
